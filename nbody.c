@@ -3,51 +3,76 @@
 #include <stdlib.h>
 #include "timer.h"
 
+// needed to avoid distance equal to zero
 #define SOFTENING 1e-9f
 
 typedef struct { float x, y, z, vx, vy, vz; } Body;
 
+// sets up the bodies with random position and velocity
 void randomizeBodies(float *data, int n) {
   for (int i = 0; i < n; i++) {
     data[i] = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
   }
 }
 
+// computes interbody forces assuming mass of bodies equal to 1
 void bodyForce(Body *p, float dt, int n) {
   #pragma omp parallel for schedule(dynamic)
   for (int i = 0; i < n; i++) { 
+    // total force on every axis applied by every other body
     float Fx = 0.0f; float Fy = 0.0f; float Fz = 0.0f;
 
     for (int j = 0; j < n; j++) {
-      float dx = p[j].x - p[i].x;
-      float dy = p[j].y - p[i].y;
-      float dz = p[j].z - p[i].z;
-      float distSqr = dx*dx + dy*dy + dz*dz + SOFTENING;
-      float invDist = 1.0f / sqrtf(distSqr);
-      float invDist3 = invDist * invDist * invDist;
+      float dx = p[j].x - p[i].x; // distance on x axis
+      float dy = p[j].y - p[i].y; // distance on y axis
+      float dz = p[j].z - p[i].z; // distance on z axis
 
-      Fx += dx * invDist3; Fy += dy * invDist3; Fz += dz * invDist3;
+      // compute force on every direction 
+      // F = 1/r^2 * D/r = D/r^3 
+      // D = (dx/r, dy/r, dz/r)
+      float distSqr = dx*dx + dy*dy + dz*dz + SOFTENING; // total distance between the two bodies
+      float invDist = 1.0f / sqrtf(distSqr); // --> 1/r
+      float invDist3 = invDist * invDist * invDist; // --> 1/r^3
+
+      Fx += dx * invDist3; // component of force with respect to x (dx / r^3)
+      Fy += dy * invDist3; // component of force with respect to y (dy / r^3)
+      Fz += dz * invDist3; // component of force with respect to z (dz / r^3)
     }
 
-    p[i].vx += dt*Fx; p[i].vy += dt*Fy; p[i].vz += dt*Fz;
+    // compute velocity on every direction
+    p[i].vx += dt * Fx; // velocity on x axis
+    p[i].vy += dt * Fy; // velocity on y axis
+    p[i].vz += dt * Fz; // velocity on z axis
   }
 }
 
+/* 
+  Command line arguments
+  [1] --> number of bodies
+  [2] --> simulation iterations
+  [3] --> time step
+*/
 int main(const int argc, const char** argv) {
   
+  // number of bodies in the simulation
   int nBodies = 30000;
+  // reading number of bodies as command line argument
   if (argc > 1) nBodies = atoi(argv[1]);
 
-  const float dt = 0.01f; // time step
-  const int nIters = 10;  // simulation iterations
+  int nIters = 10;  // simulation iterations
+  if(argc > 2) nIters = atoi(argv[2]);
+  float dt = 0.01f; // time step
+  if(argc > 3) dt = atof(argv[3]);
 
   int bytes = nBodies*sizeof(Body);
   float *buf = (float*)malloc(bytes);
   Body *p = (Body*)buf;
 
+  printf("Running simulation of %d bodies on %d iterations with time step of %.2f\n", nBodies, nIters, dt);
+
   randomizeBodies(buf, 6*nBodies); // Init pos / vel data
 
-  double totalTime = 0.0;
+  double totalTime = 0.0; // simulation total execution time
 
   for (int iter = 1; iter <= nIters; iter++) {
     StartTimer();
@@ -73,8 +98,8 @@ int main(const int argc, const char** argv) {
 #ifdef SHMOO
   printf("%d, %0.3f\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
 #else
-  printf("Average rate for iterations 2 through %d: %.3f +- %.3f steps per second.\n",
-         nIters, rate);
+  printf("Average rate for iterations 2 through %d: %.3f steps per second.\n",
+         nIters, (float)nIters/totalTime);
   printf("%d Bodies: average %0.3f Billion Interactions / second\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
 #endif
   free(buf);
