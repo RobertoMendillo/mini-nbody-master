@@ -5,20 +5,23 @@
 
 // needed to avoid distance equal to zero
 #define SOFTENING 1e-9f
+#define G 6.67e-11f
 
-typedef struct { float x, y, z, vx, vy, vz; } Body;
+typedef struct { float x, y, z, vx, vy, vz, m; } Body;
 
-// sets up the bodies with random position and velocity
+// sets up the bodies with random position, velocity and mass
 void randomizeBodies(float *data, int n) {
   for (int i = 0; i < n; i++) {
     data[i] = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
+    if(i % 7 == 6) data[i] = (rand() / (float)RAND_MAX) * 100; // set mass to a positive number
   }
 }
 
 // computes interbody forces assuming mass of bodies equal to 1
 void bodyForce(Body *p, float dt, int n) {
   #pragma omp parallel for schedule(dynamic)
-  for (int i = 0; i < n; i++) { 
+  for (int i = 0; i < n; i++) {
+    
     // total force on every axis applied by every other body
     float Fx = 0.0f; float Fy = 0.0f; float Fz = 0.0f;
 
@@ -34,9 +37,13 @@ void bodyForce(Body *p, float dt, int n) {
       float invDist = 1.0f / sqrtf(distSqr); // --> 1/r
       float invDist3 = invDist * invDist * invDist; // --> 1/r^3
 
-      Fx += dx * invDist3; // component of force with respect to x (dx / r^3)
-      Fy += dy * invDist3; // component of force with respect to y (dy / r^3)
-      Fz += dz * invDist3; // component of force with respect to z (dz / r^3)
+      float massProduct = p[j].m * G;
+
+      // to optimize calculations, this is actually an acceleration because it is already divided by mass
+      // (avoid division by mass later)
+      Fx += dx * invDist3 * massProduct; // component of force with respect to x (dx / r^3)
+      Fy += dy * invDist3 * massProduct; // component of force with respect to y (dy / r^3)
+      Fz += dz * invDist3 * massProduct; // component of force with respect to z (dz / r^3)
     }
 
     // compute velocity on every direction
@@ -47,10 +54,10 @@ void bodyForce(Body *p, float dt, int n) {
 }
 
 /* 
-  Command line arguments
-  [1] --> number of bodies
-  [2] --> simulation iterations
-  [3] --> time step
+  Command line arguments:
+    [1] --> number of bodies: default 30.000
+    [2] --> simulation iterations: default 10
+    [3] --> time step: default 0.01
 */
 int main(const int argc, const char** argv) {
   
@@ -70,7 +77,7 @@ int main(const int argc, const char** argv) {
 
   printf("Running simulation of %d bodies on %d iterations with time step of %.2f\n", nBodies, nIters, dt);
 
-  randomizeBodies(buf, 6*nBodies); // Init pos / vel data
+  randomizeBodies(buf, 7*nBodies); // Init pos / vel data
 
   double totalTime = 0.0; // simulation total execution time
 
