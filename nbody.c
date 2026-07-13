@@ -3,9 +3,8 @@
 #include <stdlib.h>
 #include "timer.h"
 
-// needed to avoid distance equal to zero
-#define SOFTENING 1e-9f
-#define G 6.67e-11f
+#define SOFTENING 1e-9f // needed to avoid distance equal to zero
+#define G 6.67e-11f // universal gravitational constant
 
 typedef struct { float x, y, z, vx, vy, vz, m; } Body;
 
@@ -53,6 +52,31 @@ void bodyForce(Body *p, float dt, int n) {
   }
 }
 
+void exportBodies(Body *p, int n, int iter)
+{
+  // Apre il file in modalità "append" (scrive in coda al file esistente)
+  FILE *f = fopen("simulation_data.csv", "a");
+  if (f == NULL)
+  {
+    printf("Errore nell'apertura del file!\n");
+    return;
+  }
+
+  // Se è la primissima iterazione, scrive l'intestazione delle colonne (header)
+  if (iter == 1)
+  {
+    fprintf(f, "iteration,body_id,x,y,z\n");
+  }
+
+  // Scrive i dati di ogni corpo
+  for (int i = 0; i < n; i++)
+  {
+    fprintf(f, "%d,%d,%.5f,%.5f,%.5f\n", iter, i, p[i].x, p[i].y, p[i].z);
+  }
+
+  fclose(f); // Chiude il file per salvare i dati sul disco
+}
+
 /* 
   Command line arguments:
     [1] --> number of bodies: default 30.000
@@ -86,11 +110,16 @@ int main(const int argc, const char** argv) {
 
     bodyForce(p, dt, nBodies); // compute interbody forces
 
+    #pragma omp parallel for schedule(static)
     for (int i = 0 ; i < nBodies; i++) { // integrate position
       p[i].x += p[i].vx*dt;
       p[i].y += p[i].vy*dt;
       p[i].z += p[i].vz*dt;
     }
+
+#ifdef EXPORT
+    exportBodies(p, nBodies, iter);
+#endif
 
     const double tElapsed = GetTimer() / 1000.0;
     if (iter > 1) { // First iter is warm up
@@ -105,8 +134,8 @@ int main(const int argc, const char** argv) {
 #ifdef SHMOO
   printf("%d, %0.3f\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
 #else
-  printf("Average rate for iterations 2 through %d: %.3f steps per second.\n",
-         nIters, (float)nIters/totalTime);
+  printf("Average rate for iterations 2 through %d: %.3f steps per second, %.3f average per iteration.\n",
+         nIters, (float)nIters/totalTime, avgTime);
   printf("%d Bodies: average %0.3f Billion Interactions / second\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
 #endif
   free(buf);
