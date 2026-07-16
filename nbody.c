@@ -116,13 +116,12 @@ int main(const int argc, const char** argv) {
 
   double totalTime = 0.0; // simulation total execution time
 
-  for (int iter = 1; iter <= nIters; iter++) {
-
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-    printf("Starting papi monitors ...\n");
-    papi_helper_start(papi_monitor);
-    printf("... started\n");
+  printf("Starting papi monitors ...\n");
+  papi_helper_start(papi_monitor);
+  printf("... started\n");
 #endif
+  for (int iter = 1; iter <= nIters; iter++) {
     StartTimer();
 
     bodyForce(p, dt, nBodies); // compute interbody forces
