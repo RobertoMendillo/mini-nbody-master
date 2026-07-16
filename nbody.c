@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include "timer.h"
 
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+#include "papi_helper.h"
+#endif
+
 #define SOFTENING 1e-9f // needed to avoid distance equal to zero
 #define G 6.67e-11f // universal gravitational constant
 
@@ -99,6 +103,13 @@ int main(const int argc, const char** argv) {
   float *buf = (float*)malloc(bytes);
   Body *p = (Body*)buf;
 
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+  Papi_Monitor *papi_monitor = malloc(sizeof(Papi_Monitor));
+  printf("Init papi monitors ...\n");
+  papi_helper_init(papi_monitor);
+  printf("... completed\n");
+#endif
+
   printf("Running simulation of %d bodies on %d iterations with time step of %.2f\n", nBodies, nIters, dt);
 
   randomizeBodies(buf, 7*nBodies); // Init pos / vel data
@@ -106,6 +117,12 @@ int main(const int argc, const char** argv) {
   double totalTime = 0.0; // simulation total execution time
 
   for (int iter = 1; iter <= nIters; iter++) {
+
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+    printf("Starting papi monitors ...\n");
+    papi_helper_start(papi_monitor);
+    printf("... started\n");
+#endif
     StartTimer();
 
     bodyForce(p, dt, nBodies); // compute interbody forces
@@ -129,7 +146,13 @@ int main(const int argc, const char** argv) {
     printf("Iteration %d: %.3f seconds\n", iter, tElapsed);
 #endif
   }
-  double avgTime = totalTime / (double)(nIters-1); 
+  double avgTime = totalTime / (double)(nIters-1);
+
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+  printf("Stopping papi monitors ...\n");
+  papi_helper_init(papi_monitor);
+  printf("... stopped\n");
+#endif
 
 #ifdef SHMOO
   printf("%d, %0.3f\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
