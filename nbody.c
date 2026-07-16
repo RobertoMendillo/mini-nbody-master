@@ -149,8 +149,9 @@ int main(const int argc, const char** argv) {
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
   printf("Stopping papi monitors ...\n");
-  papi_helper_init(papi_monitor);
+  papi_helper_stop(papi_monitor);
   printf("... stopped\n");
+  papi_helper_print(papi_monitor);
 #endif
 
 #ifdef SHMOO
