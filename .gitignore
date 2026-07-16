@@ -1,13 +1,36 @@
-# Compiled Object files
-*.slo
-*.lo
+# --- Python (Virtual Environment & Cache) ---
+# Ignora la cartella dell'ambiente virtuale (spesso si chiama 'venv' o '.venv')
+# Nel tuo screen vediamo 'pyvenv.cfg' nella root, il che indica che i file del venv sono lì o in una sottocartella
+venv/
+.venv/
+env/
+pyvenv.cfg
+include/gdt/
+lib/python*/
+lib64/
+# Ignora i file compilati di Python e le cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Output di Compilazione C / C++ ---
+# Ignora gli eseguibili compilati e gli object file
 *.o
+*.out
+bin/
+lib/
+# Nota: se dentro 'lib/' o 'bin/' hai librerie di terze parti non compilate da te che servono al progetto,
+# vedi la nota in fondo su come gestirle.
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
+# --- File di Dati e Risultati ---
+# Ignora i file CSV generati dalle simulazioni e i log
+*.csv
+*.log
+simulation_data.csv
 
-# Compiled Static libraries
-*.lai
-*.la
-*.a
+# --- File di sistema e IDE ---
+.DS_Store
+Thonny/
+.vscode/
+.idea/
