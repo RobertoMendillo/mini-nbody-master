@@ -3,22 +3,49 @@ PAPI_L1_DCM  0x80000000  Yes   No   Level 1 data cache misses
 PAPI_L1_ICM  0x80000001  Yes   No   Level 1 instruction cache misses
 PAPI_L2_DCM  0x80000002  Yes   Yes  Level 2 data cache misses
 PAPI_L2_ICM  0x80000003  Yes   No   Level 2 instruction cache misses
-PAPI_L3_DCM  0x80000004  No    No   Level 3 data cache misses
-PAPI_L3_ICM  0x80000005  No    No   Level 3 instruction cache misses
 PAPI_L1_TCM  0x80000006  Yes   Yes  Level 1 cache misses
 PAPI_L2_TCM  0x80000007  Yes   No   Level 2 cache misses
 PAPI_L3_TCM  0x80000008  Yes   No   Level 3 cache misses
-
-PAPI_MEM_SCY 0x80000022  No    No   Cycles Stalled Waiting for memory accesses
-PAPI_MEM_RCY 0x80000023  No    No   Cycles Stalled Waiting for memory Reads
-PAPI_MEM_WCY 0x80000024  Yes   No   Cycles Stalled Waiting for memory writes
-
-PAPI_FP_INS  0x80000034  No    No   Floating point instructions
-PAPI_VEC_INS 0x80000038  No    No   Vector/SIMD instructions (could include integer)
-PAPI_RES_STL 0x80000039  Yes   No   Cycles stalled on any resource
-PAPI_SYC_INS 0x8000003d  No    No   Synchronization instructions completed
-
-PAPI_FML_INS 0x80000061  No    No   Floating point multiply instructions
-PAPI_FAD_INS 0x80000062  No    No   Floating point add instructions
-PAPI_FDV_INS 0x80000063  No    No   Floating point divide instructions
-PAPI_FSQ_INS 0x80000064  No    No   Floating point square root instructions
+PAPI_TLB_DM  0x80000014  Yes   Yes  Data translation lookaside buffer misses
+PAPI_TLB_IM  0x80000015  Yes   No   Instruction translation lookaside buffer misses
+PAPI_L1_LDM  0x80000017  Yes   No   Level 1 load misses
+PAPI_L1_STM  0x80000018  Yes   No   Level 1 store misses
+PAPI_L2_STM  0x8000001a  Yes   No   Level 2 store misses
+PAPI_STL_ICY 0x80000025  Yes   No   Cycles with no instruction issue
+PAPI_BR_UCN  0x8000002a  Yes   Yes  Unconditional branch instructions
+PAPI_BR_CN   0x8000002b  Yes   No   Conditional branch instructions
+PAPI_BR_TKN  0x8000002c  Yes   Yes  Conditional branch instructions taken
+PAPI_BR_NTK  0x8000002d  Yes   No   Conditional branch instructions not taken
+PAPI_BR_MSP  0x8000002e  Yes   No   Conditional branch instructions mispredicted
+PAPI_BR_PRC  0x8000002f  Yes   Yes  Conditional branch instructions correctly predicted
+PAPI_TOT_INS 0x80000032  Yes   No   Instructions completed
+PAPI_FP_INS  0x80000034  Yes   Yes  Floating point instructions
+PAPI_LD_INS  0x80000035  Yes   No   Load instructions
+PAPI_SR_INS  0x80000036  Yes   No   Store instructions
+PAPI_BR_INS  0x80000037  Yes   No   Branch instructions
+PAPI_TOT_CYC 0x8000003b  Yes   No   Total cycles
+PAPI_L2_DCH  0x8000003f  Yes   Yes  Level 2 data cache hits
+PAPI_L2_DCA  0x80000041  Yes   No   Level 2 data cache accesses
+PAPI_L3_DCA  0x80000042  Yes   Yes  Level 3 data cache accesses
+PAPI_L2_DCR  0x80000044  Yes   No   Level 2 data cache reads
+PAPI_L3_DCR  0x80000045  Yes   No   Level 3 data cache reads
+PAPI_L2_DCW  0x80000047  Yes   No   Level 2 data cache writes
+PAPI_L3_DCW  0x80000048  Yes   No   Level 3 data cache writes
+PAPI_L2_ICH  0x8000004a  Yes   No   Level 2 instruction cache hits
+PAPI_L2_ICA  0x8000004d  Yes   No   Level 2 instruction cache accesses
+PAPI_L3_ICA  0x8000004e  Yes   No   Level 3 instruction cache accesses
+PAPI_L2_ICR  0x80000050  Yes   No   Level 2 instruction cache reads
+PAPI_L3_ICR  0x80000051  Yes   No   Level 3 instruction cache reads
+PAPI_L2_TCA  0x80000059  Yes   Yes  Level 2 total cache accesses
+PAPI_L3_TCA  0x8000005a  Yes   No   Level 3 total cache accesses
+PAPI_L2_TCR  0x8000005c  Yes   Yes  Level 2 total cache reads
+PAPI_L3_TCR  0x8000005d  Yes   Yes  Level 3 total cache reads
+PAPI_L2_TCW  0x8000005f  Yes   No   Level 2 total cache writes
+PAPI_L3_TCW  0x80000060  Yes   No   Level 3 total cache writes
+PAPI_FDV_INS 0x80000063  Yes   No   Floating point divide instructions
+PAPI_FP_OPS  0x80000066  Yes   Yes  Floating point operations
+PAPI_SP_OPS  0x80000067  Yes   Yes  Floating point operations; optimized to count scaled single precision vector operations
+PAPI_DP_OPS  0x80000068  Yes   Yes  Floating point operations; optimized to count scaled double precision vector operations
+PAPI_VEC_SP  0x80000069  Yes   Yes  Single precision vector/SIMD instructions
+PAPI_VEC_DP  0x8000006a  Yes   Yes  Double precision vector/SIMD instructions
+PAPI_REF_CYC 0x8000006b  Yes   No   Reference clock cycles

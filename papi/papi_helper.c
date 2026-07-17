@@ -4,8 +4,10 @@
 
 // Array statico contenente i codici degli eventi da monitorare
 static int event_codes[NUM_EVENTS] = {
-    PAPI_L1_DCM, // Livello 1 Data Cache Misses
-    PAPI_RES_STL // Cicli di stall sulle risorse
+    PAPI_L1_DCM,  // Livello 1 Data Cache Misses
+    PAPI_L2_DCM,  // Livello 2 Data Cache Misses
+    PAPI_RES_STL, // Cicli di stall sulle risorse
+    PAPI_FP_INS,  // Floating point instructions
 };
 
 int papi_helper_init(Papi_Monitor *monitor)
@@ -44,6 +46,7 @@ int papi_helper_init(Papi_Monitor *monitor)
       fprintf(stderr, "Errore nell'aggiunta dell'evento %d: %s\n", i, PAPI_strerror(retval));
       return -1;
     }
+
     // Azzera il valore iniziale
     monitor->values[i] = 0;
   }
@@ -77,7 +80,9 @@ int papi_helper_stop(Papi_Monitor *monitor)
 void papi_helper_print(Papi_Monitor *monitor)
 {
   printf("\n=== METRICHE PAPI ===\n");
-  printf("L1 Data Cache Misses : %lld\n", monitor->values[L1_CACHE_MISS_INDEX]);
-  printf("Resource Cycle Stalls: %lld\n", monitor->values[CYCLE_STALLS_INDEX]);
+  printf("L1 Data Cache Misses (billions): %.4f\n", monitor->values[L1_CACHE_MISS_INDEX]/1e9);
+  printf("L2 Data Cache Misses (billions): %.4f\n", monitor->values[L2_CACHE_MISS_INDEX]/1e9);
+  printf("Resource Cycle Stalls (billions): %.4f\n", monitor->values[CYCLE_STALLS_INDEX]/1e9);
+  printf("Floating point instructions (billions): %.4f\n", monitor->values[FP_ISTRUCTIONS_INDEX] / 1e9);
   printf("======================\n");
 }

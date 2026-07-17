@@ -8,7 +8,9 @@
 
 // Indici comodi per accedere ai risultati
 #define L1_CACHE_MISS_INDEX 0
-#define CYCLE_STALLS_INDEX 1
+#define L2_CACHE_MISS_INDEX 1
+#define CYCLE_STALLS_INDEX 2
+#define FP_ISTRUCTIONS_INDEX 3
 
 // Struttura per gestire i risultati dei counter
 typedef struct
