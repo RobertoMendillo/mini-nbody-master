@@ -4,7 +4,7 @@
 #include <papi.h>
 
 // Definiamo quanti eventi vogliamo tracciare
-#define NUM_EVENTS 2
+#define NUM_EVENTS 4
 
 // Indici comodi per accedere ai risultati
 #define L1_CACHE_MISS_INDEX 0
