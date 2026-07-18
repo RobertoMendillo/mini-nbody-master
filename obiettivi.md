@@ -24,3 +24,13 @@ Aggiunte
 ======
 
 ✅ I corpi hanno massa costante unitaria, aggiungere una massa variabile
+
+
+
+
+Istruzioni
+===========
+
+mpicc: per compilare MPI
+mpirun: per eseguire programmi MPI
+-I<percorso>: indica al linker dove prendere i file -h
