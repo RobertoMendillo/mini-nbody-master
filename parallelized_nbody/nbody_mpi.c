@@ -5,9 +5,9 @@
 
 #include "timer.h"
 
-#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-#include "papi_helper.h"
-#endif
+// #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+// #include "papi/papi_helper.h"
+// #endif
 
 #define SOFTENING \
     1e-9f  // needed to avoid distance
@@ -20,9 +20,10 @@
 typedef struct {
     float x, y, z, vx, vy, vz, m;
 } Body;
+#define BODY_SIZE sizeof(Body)
 
-void randomizeBodies(float* data, int n);
-void bodyForce(Body* p, float dt, int n);
+void randomizeBodies(Body* data, int n);
+void bodyForce(Body* p, float dt, int n, Body* localBuffer, int blocksize);
 void exportBodies(Body* p, int n, int iter);
 
 /*
@@ -46,8 +47,7 @@ int main(int argc, char** argv) {
     if (argc > 3) dt = atof(argv[3]);
 
     int bytes = nBodies * sizeof(Body);
-    float* global_buffer = (float*)malloc(bytes);
-    Body* p = (Body*)global_buffer;
+    Body* global_buffer = (Body*)malloc(bytes);
 
     // MPI ========
     int rank,
@@ -65,64 +65,73 @@ int main(int argc, char** argv) {
     int blockSize = nBodies / size;
     int blockRemainder = nBodies % size;
 
-    float* local_buffer = (float*)malloc(sizeof(Body) * (blockSize + blockRemainder));
+    printf("#%d Memory allocation for local buffer ... ", rank);
+    Body* local_buffer = (Body*)malloc((blockSize + blockRemainder) * sizeof(Body));
+    printf(" ... done.\n");
     // ============
 
-#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-    if (rank == MAIN_PROC) {
-        Papi_Monitor* papi_monitor = malloc(sizeof(Papi_Monitor));
-        printf("Init papi monitors ...\n");
-        papi_helper_init(papi_monitor);
-        printf("... completed\n");
-    }
-#endif
+    // #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+    //     Papi_Monitor* papi_monitor;
+    //     if (rank == MAIN_PROC) {
+    //         papi_monitor = malloc(sizeof(Papi_Monitor));
+    //         printf("Init papi monitors ...\n");
+    //         papi_helper_init(papi_monitor);
+    //         printf("... completed\n");
+    //     }
+    // #endif
 
     if (rank == MAIN_PROC) {
         printf(
             "Running simulation of %d "
             "bodies on %d iterations with "
             "time step of "
-            "%.2f\n",
-            nBodies, nIters, dt);
+            "%.2f on %d nodes\n",
+            nBodies, nIters, dt, size);
 
-        randomizeBodies(global_buffer, 7 * nBodies);  // Init position, velocity, mass
+        printf("Randomizing bodies ...");
+        randomizeBodies(global_buffer, nBodies);  // Init position, velocity, mass
+        printf("... done.\n");
     }
 
     // distribute blocks to all nodes
-    MPI_Scatter(global_buffer, blockSize, MPI_FLOAT, local_buffer, blockSize, MPI_FLOAT, rank,
-                MPI_COMM_WORLD);
+    printf("distributing work...");
+    MPI_Scatter(global_buffer, BODY_SIZE * blockSize, MPI_BYTE, local_buffer, BODY_SIZE * blockSize,
+                MPI_BYTE, MAIN_PROC, MPI_COMM_WORLD);
+    printf("... done.\n");
 
     double totalTime = 0.0;  // simulation total execution time
 
-#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-    if (rank == MAIN_PROC) {
-        printf("Starting papi monitors ...\n");
-        papi_helper_start(papi_monitor);
-        printf("... started\n");
-    }
-#endif
+    // #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+    //     if (rank == MAIN_PROC) {
+    //         printf("Starting papi monitors ...\n");
+    //         papi_helper_start(papi_monitor);
+    //         printf("... started\n");
+    //     }
+    // #endif
 
     for (int iter = 1; iter <= nIters; iter++) {
         // raccogliamo lo stato attuale dei corpi
-        MPI_Allgather(local_buffer, blockSize, MPI_FLOAT, global_buffer, blockSize, MPI_FLOAT,
-                      MPI_COMM_WORLD);
+        MPI_Allgather(local_buffer, BODY_SIZE * blockSize, MPI_BYTE, global_buffer,
+                      BODY_SIZE * blockSize, MPI_BYTE, MPI_COMM_WORLD);
 
         if (rank == MAIN_PROC) {
+            printf("Iteration %d start ...", iter);
             StartTimer();
         }
 
-        bodyForce(p, dt, nBodies, local_buffer, blockSize);  // compute interbody forces
+#ifdef EXPORT
+        if (rank == MAIN_PROC) exportBodies(global_buffer, nBodies, iter);
+#endif
+
+        bodyForce(global_buffer, dt, nBodies, local_buffer, blockSize);  // compute interbody forces
 
 #pragma omp parallel for schedule(static)
-        for (int i = 0; i < nBodies; i++) {  // integrate position
-            p[i].x += p[i].vx * dt;
-            p[i].y += p[i].vy * dt;
-            p[i].z += p[i].vz * dt;
+        for (int i = 0; i < blockSize; i++) {  // integrate position
+            local_buffer[i].x += local_buffer[i].vx * dt;
+            local_buffer[i].y += local_buffer[i].vy * dt;
+            local_buffer[i].z += local_buffer[i].vz * dt;
         }
 
-#ifdef EXPORT
-        exportBodies(p, nBodies, iter);
-#endif
         double tElapsed;
         if (rank == MAIN_PROC) {
             tElapsed = GetTimer() / 1000.0;
@@ -132,9 +141,9 @@ int main(int argc, char** argv) {
 
 #ifndef SHMOO
             printf(
-                "Iteration %d: %.3f "
+                " ... %.3f "
                 "seconds\n",
-                iter, tElapsed);
+                tElapsed);
 #endif
         }
 
@@ -143,12 +152,12 @@ int main(int argc, char** argv) {
     if (rank == MAIN_PROC) {
         double avgTime = totalTime / (double)(nIters - 1);
 
-#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-        printf("Stopping papi monitors ...\n");
-        papi_helper_stop(papi_monitor);
-        printf("... stopped\n");
-        papi_helper_print(papi_monitor);
-#endif
+        // #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+        //         printf("Stopping papi monitors ...\n");
+        //         papi_helper_stop(papi_monitor);
+        //         printf("... stopped\n");
+        //         papi_helper_print(papi_monitor);
+        // #endif
 
 #ifdef SHMOO
         printf("%d, %0.3f\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
@@ -168,24 +177,28 @@ int main(int argc, char** argv) {
     }
     free(global_buffer);
     free(local_buffer);
+    MPI_Finalize();
 }
 
 // sets up the bodies with random
 // position, velocity and mass
-void randomizeBodies(float* data, int n) {
+void randomizeBodies(Body* bodies, int n) {
     for (int i = 0; i < n; i++) {
-        data[i] = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
-        if (i % 7 == 6)
-            data[i] = (rand() / (float)RAND_MAX) * 100;  // set mass to a
-                                                         // positive number
+        bodies[i].x = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
+        bodies[i].y = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
+        bodies[i].z = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
+        bodies[i].vx = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
+        bodies[i].vy = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
+        bodies[i].vz = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
+        bodies[i].m = (rand() / (float)RAND_MAX) * 100;  // set mass to a positive number
     }
 }
 
 // computes interbody forces assuming
 // mass of bodies equal to 1
-void bodyForce(Body* p, float dt, int n) {
+void bodyForce(Body* p, float dt, int n, Body* localBuffer, int blocksize) {
 #pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < blocksize; i++) {
         // total force on every axis
         // applied by every other body
         float Fx = 0.0f;
@@ -193,12 +206,9 @@ void bodyForce(Body* p, float dt, int n) {
         float Fz = 0.0f;
 
         for (int j = 0; j < n; j++) {
-            float dx = p[j].x - p[i].x;  // distance on
-                                         // x axis
-            float dy = p[j].y - p[i].y;  // distance on
-                                         // y axis
-            float dz = p[j].z - p[i].z;  // distance on
-                                         // z axis
+            float dx = p[j].x - localBuffer[i].x;  // distance on x axis
+            float dy = p[j].y - localBuffer[i].y;  // distance on y axis
+            float dz = p[j].z - localBuffer[i].z;  // distance on z axis
 
             // compute force on every
             // direction F = 1/r^2 * D/r
@@ -249,9 +259,9 @@ void bodyForce(Body* p, float dt, int n) {
 
         // compute velocity on every
         // direction
-        p[i].vx += dt * Fx;  // velocity on x axis
-        p[i].vy += dt * Fy;  // velocity on y axis
-        p[i].vz += dt * Fz;  // velocity on z axis
+        localBuffer[i].vx += dt * Fx;  // velocity on x axis
+        localBuffer[i].vy += dt * Fy;  // velocity on y axis
+        localBuffer[i].vz += dt * Fz;  // velocity on z axis
     }
 }
 
