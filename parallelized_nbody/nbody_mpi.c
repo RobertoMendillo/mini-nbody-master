@@ -5,9 +5,9 @@
 
 #include "timer.h"
 
-// #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-// #include "papi/papi_helper.h"
-// #endif
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+#include "papi_helper.h"
+#endif
 
 #define SOFTENING \
     1e-9f  // needed to avoid distance
@@ -65,20 +65,30 @@ int main(int argc, char** argv) {
     int blockSize = nBodies / size;
     int blockRemainder = nBodies % size;
 
+#ifdef DEBUG
     printf("#%d Memory allocation for local buffer ... ", rank);
+#endif
     Body* local_buffer = (Body*)malloc((blockSize + blockRemainder) * sizeof(Body));
+#ifdef DEBUG
     printf(" ... done.\n");
+#endif
     // ============
 
-    // #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-    //     Papi_Monitor* papi_monitor;
-    //     if (rank == MAIN_PROC) {
-    //         papi_monitor = malloc(sizeof(Papi_Monitor));
-    //         printf("Init papi monitors ...\n");
-    //         papi_helper_init(papi_monitor);
-    //         printf("... completed\n");
-    //     }
-    // #endif
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+    Papi_Monitor* papi_monitor;
+    if (rank == MAIN_PROC) {
+        papi_monitor = malloc(sizeof(Papi_Monitor));
+#ifdef DEBUG
+        printf("Init papi monitors ...\n");
+#endif
+
+        papi_helper_init(papi_monitor);
+
+#ifdef DEBUG
+        printf("... completed\n");
+#endif
+    }
+#endif
 
     if (rank == MAIN_PROC) {
         printf(
@@ -88,27 +98,40 @@ int main(int argc, char** argv) {
             "%.2f on %d nodes\n",
             nBodies, nIters, dt, size);
 
+#ifdef DEBUG
         printf("Randomizing bodies ...");
+#endif
         randomizeBodies(global_buffer, nBodies);  // Init position, velocity, mass
+#ifdef DEBUG
         printf("... done.\n");
+#endif
     }
 
     // distribute blocks to all nodes
+#ifdef DEBUG
     printf("distributing work...");
+#endif
     MPI_Scatter(global_buffer, BODY_SIZE * blockSize, MPI_BYTE, local_buffer, BODY_SIZE * blockSize,
                 MPI_BYTE, MAIN_PROC, MPI_COMM_WORLD);
+#ifdef DEBUG
     printf("... done.\n");
+#endif
 
     double totalTime = 0.0;  // simulation total execution time
 
-    // #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-    //     if (rank == MAIN_PROC) {
-    //         printf("Starting papi monitors ...\n");
-    //         papi_helper_start(papi_monitor);
-    //         printf("... started\n");
-    //     }
-    // #endif
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+    if (rank == MAIN_PROC) {
+#ifdef DEBUG
+        printf("Starting papi monitors ...\n");
+#endif
+        papi_helper_start(papi_monitor);
+#ifdef DEBUG
+        printf("... started\n");
+#endif
+    }
+#endif
 
+    MPI_Barrier(MPI_COMM_WORLD);
     int iter;
     for (iter = 1; iter <= nIters; iter++) {
         // raccogliamo lo stato attuale dei corpi
@@ -154,12 +177,16 @@ int main(int argc, char** argv) {
     if (rank == MAIN_PROC) {
         double avgTime = totalTime / (double)(nIters - 1);
 
-        // #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-        //         printf("Stopping papi monitors ...\n");
-        //         papi_helper_stop(papi_monitor);
-        //         printf("... stopped\n");
-        //         papi_helper_print(papi_monitor);
-        // #endif
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+#ifdef DEBUG
+        printf("Stopping papi monitors ...\n");
+#endif
+        papi_helper_stop(papi_monitor);
+#ifdef DEBUG
+        printf("... stopped\n");
+#endif
+        papi_helper_print(papi_monitor);
+#endif
 
 #ifdef SHMOO
         printf("%d, %0.3f\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
