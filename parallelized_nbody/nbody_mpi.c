@@ -109,7 +109,8 @@ int main(int argc, char** argv) {
     //     }
     // #endif
 
-    for (int iter = 1; iter <= nIters; iter++) {
+    int iter;
+    for (iter = 1; iter <= nIters; iter++) {
         // raccogliamo lo stato attuale dei corpi
         MPI_Allgather(local_buffer, BODY_SIZE * blockSize, MPI_BYTE, global_buffer,
                       BODY_SIZE * blockSize, MPI_BYTE, MPI_COMM_WORLD);
@@ -126,7 +127,8 @@ int main(int argc, char** argv) {
         bodyForce(global_buffer, dt, nBodies, local_buffer, blockSize);  // compute interbody forces
 
 #pragma omp parallel for schedule(static)
-        for (int i = 0; i < blockSize; i++) {  // integrate position
+        int i;
+        for (i = 0; i < blockSize; i++) {  // integrate position
             local_buffer[i].x += local_buffer[i].vx * dt;
             local_buffer[i].y += local_buffer[i].vy * dt;
             local_buffer[i].z += local_buffer[i].vz * dt;
@@ -183,7 +185,8 @@ int main(int argc, char** argv) {
 // sets up the bodies with random
 // position, velocity and mass
 void randomizeBodies(Body* bodies, int n) {
-    for (int i = 0; i < n; i++) {
+    int i;
+    for (i = 0; i < n; i++) {
         bodies[i].x = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
         bodies[i].y = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
         bodies[i].z = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
@@ -198,14 +201,16 @@ void randomizeBodies(Body* bodies, int n) {
 // mass of bodies equal to 1
 void bodyForce(Body* p, float dt, int n, Body* localBuffer, int blocksize) {
 #pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < blocksize; i++) {
+    int i;
+    int j;
+    for (i = 0; i < blocksize; i++) {
         // total force on every axis
         // applied by every other body
         float Fx = 0.0f;
         float Fy = 0.0f;
         float Fz = 0.0f;
 
-        for (int j = 0; j < n; j++) {
+        for (j = 0; j < n; j++) {
             float dx = p[j].x - localBuffer[i].x;  // distance on x axis
             float dy = p[j].y - localBuffer[i].y;  // distance on y axis
             float dz = p[j].z - localBuffer[i].z;  // distance on z axis
@@ -287,7 +292,8 @@ void exportBodies(Body* p, int n, int iter) {
     }
 
     // Scrive i dati di ogni corpo
-    for (int i = 0; i < n; i++) {
+    int i;
+    for (i = 0; i < n; i++) {
         fprintf(f, "%d,%d,%.5f,%.5f,%.5f\n", iter, i, p[i].x, p[i].y, p[i].z);
     }
 
