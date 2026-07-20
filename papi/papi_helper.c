@@ -34,7 +34,8 @@ int papi_helper_init(Papi_Monitor* monitor) {
     }
 
     // 4. Aggiungi tutti gli eventi definiti nell'array all'unico EventSet
-    for (int i = 0; i < NUM_EVENTS; i++) {
+    int i;
+    for (i = 0; i < NUM_EVENTS; i++) {
         retval = PAPI_add_event(monitor->event_set, event_codes[i]);
         if (retval != PAPI_OK) {
             fprintf(stderr, "Errore nell'aggiunta dell'evento %d: %s\n", i, PAPI_strerror(retval));
