@@ -70,6 +70,5 @@ void papi_helper_print(Papi_Monitor* monitor) {
     printf("\n=== METRICHE PAPI ===\n");
     printf("L1 Data Cache Misses (billions): %.4f\n", monitor->values[L1_CACHE_MISS_INDEX] / 1e9);
     printf("L2 Data Cache Misses (billions): %.4f\n", monitor->values[L2_CACHE_MISS_INDEX] / 1e9);
-    printf("Floating point instructions (billions): %.4f\n", monitor->values[FP_ISTRUCTIONS_INDEX] / 1e9);
     printf("======================\n");
 }
