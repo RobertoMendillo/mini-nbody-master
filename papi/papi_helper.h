@@ -4,14 +4,12 @@
 #include <papi.h>
 
 // Definiamo quanti eventi vogliamo tracciare
-#define NUM_EVENTS 5
+#define NUM_EVENTS 3
 
 // Indici comodi per accedere ai risultati
 #define L1_CACHE_MISS_INDEX 0
 #define L2_CACHE_MISS_INDEX 1
-#define SP_SIMD_ISTR_INDEX 2
-#define DP_SIMD_ISTR_INDEX 3
-#define FP_ISTRUCTIONS_INDEX 4
+#define FP_ISTRUCTIONS_INDEX 2
 
 // Struttura per gestire i risultati dei counter
 typedef struct {

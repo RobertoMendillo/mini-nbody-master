@@ -7,8 +7,6 @@
 static int event_codes[NUM_EVENTS] = {
     PAPI_L1_DCM,  // Livello 1 Data Cache Misses
     PAPI_L2_DCM,  // Livello 2 Data Cache Misses
-    PAPI_VEC_SP,  // Single precision vector/SIMD instructions
-    PAPI_VEC_DP,  // Double precision vector / SIMD instructions
     PAPI_FP_INS   // Floating point instructions
 };
 
@@ -73,8 +71,6 @@ void papi_helper_print(Papi_Monitor* monitor) {
     printf("\n=== METRICHE PAPI ===\n");
     printf("L1 Data Cache Misses (billions): %.4f\n", monitor->values[L1_CACHE_MISS_INDEX] / 1e9);
     printf("L2 Data Cache Misses (billions): %.4f\n", monitor->values[L2_CACHE_MISS_INDEX] / 1e9);
-    printf("Single precision vector/SIMD instructions): %.4f\n", monitor->values[SP_SIMD_ISTR_INDEX]);
-    printf("Double precision vector/SIMD instructions): %.4f\n", monitor->values[DP_SIMD_ISTR_INDEX]);
     printf("Floating point instructions (billions): %.4f\n", monitor->values[FP_ISTRUCTIONS_INDEX] / 1e9);
     printf("======================\n");
 }
