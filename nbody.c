@@ -1,6 +1,8 @@
 #include <math.h>
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "timer.h"
 
@@ -14,6 +16,102 @@
 typedef struct {
     float x, y, z, vx, vy, vz, m;
 } Body;
+
+void randomizeBodies(float* data, int n);
+void bodyForce(Body* p, float dt, int n);
+void exportBodies(Body* p, int n, int iter);
+
+/*
+  Command line arguments:
+    [1] --> number of bodies: default 30.000
+    [2] --> simulation iterations: default 10
+    [3] --> time step: default 0.01
+*/
+int main(const int argc, const char** argv) {
+    // number of bodies in the simulation
+    int nBodies = 30000;
+    // reading number of bodies as command line argument
+    if (argc > 1) nBodies = atoi(argv[1]);
+
+    int nIters = 10;  // simulation iterations
+    if (argc > 2) nIters = atoi(argv[2]);
+    float dt = 0.01f;  // time step
+    if (argc > 3) dt = atof(argv[3]);
+
+    int bytes = nBodies * sizeof(Body);
+    float* buf = (float*)malloc(bytes);
+    Body* p = (Body*)buf;
+
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+    Papi_Monitor* papi_monitor = malloc(sizeof(Papi_Monitor));
+    printf("Init papi monitors ...\n");
+    papi_helper_init(papi_monitor);
+    printf("... completed\n");
+#endif
+
+    const int HOSTNAME_LENTGH = 30;
+    char* hostname = (char*)malloc(HOSTNAME_LENTGH * sizeof(char));
+    gethostname(hostname, HOSTNAME_LENTGH);
+    printf("Running on: %s", hostname);
+    printf("Running simulation of %d bodies on %d iterations with time step of %.2f\n", nBodies,
+           nIters, dt);
+
+    randomizeBodies(buf, 7 * nBodies);  // Init pos / vel data
+
+    double totalTime = 0.0;  // simulation total execution time
+
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+    printf("Starting papi monitors ...\n");
+    papi_helper_start(papi_monitor);
+    printf("... started\n");
+#endif
+    int iter;
+    for (iter = 1; iter <= nIters; iter++) {
+        StartTimer();
+
+        bodyForce(p, dt, nBodies);  // compute interbody forces
+
+#pragma omp parallel for schedule(static)
+        int i;
+        for (i = 0; i < nBodies; i++) {  // integrate position
+            p[i].x += p[i].vx * dt;
+            p[i].y += p[i].vy * dt;
+            p[i].z += p[i].vz * dt;
+        }
+
+#ifdef EXPORT
+        exportBodies(p, nBodies, iter);
+#endif
+
+        const double tElapsed = GetTimer() / 1000.0;
+        if (iter > 1) {  // First iter is warm up
+            totalTime += tElapsed;
+        }
+#ifndef SHMOO
+        printf("Iteration %d: %.3f seconds\n", iter, tElapsed);
+#endif
+    }
+    double avgTime = totalTime / (double)(nIters - 1);
+
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+    printf("Stopping papi monitors ...\n");
+    papi_helper_stop(papi_monitor);
+    printf("... stopped\n");
+    papi_helper_print(papi_monitor);
+#endif
+
+#ifdef SHMOO
+    printf("%d, %0.3f\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
+#else
+    printf(
+        "Average rate for iterations 2 through %d: %.3f steps per second, %.3f average per "
+        "iteration.\n",
+        nIters, (float)nIters / totalTime, avgTime);
+    printf("%d Bodies: average %0.3f Billion Interactions / second\n", nBodies,
+           1e-9 * nBodies * nBodies / avgTime);
+#endif
+    free(buf);
+}
 
 // sets up the bodies with random position, velocity and mass
 void randomizeBodies(float* data, int n) {
@@ -85,92 +183,4 @@ void exportBodies(Body* p, int n, int iter) {
     }
 
     fclose(f);  // Chiude il file per salvare i dati sul disco
-}
-
-/*
-  Command line arguments:
-    [1] --> number of bodies: default 30.000
-    [2] --> simulation iterations: default 10
-    [3] --> time step: default 0.01
-*/
-int main(const int argc, const char** argv) {
-    // number of bodies in the simulation
-    int nBodies = 30000;
-    // reading number of bodies as command line argument
-    if (argc > 1) nBodies = atoi(argv[1]);
-
-    int nIters = 10;  // simulation iterations
-    if (argc > 2) nIters = atoi(argv[2]);
-    float dt = 0.01f;  // time step
-    if (argc > 3) dt = atof(argv[3]);
-
-    int bytes = nBodies * sizeof(Body);
-    float* buf = (float*)malloc(bytes);
-    Body* p = (Body*)buf;
-
-#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-    Papi_Monitor* papi_monitor = malloc(sizeof(Papi_Monitor));
-    printf("Init papi monitors ...\n");
-    papi_helper_init(papi_monitor);
-    printf("... completed\n");
-#endif
-
-    printf("Running simulation of %d bodies on %d iterations with time step of %.2f\n", nBodies,
-           nIters, dt);
-
-    randomizeBodies(buf, 7 * nBodies);  // Init pos / vel data
-
-    double totalTime = 0.0;  // simulation total execution time
-
-#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-    printf("Starting papi monitors ...\n");
-    papi_helper_start(papi_monitor);
-    printf("... started\n");
-#endif
-    int iter;
-    for (iter = 1; iter <= nIters; iter++) {
-        StartTimer();
-
-        bodyForce(p, dt, nBodies);  // compute interbody forces
-
-#pragma omp parallel for schedule(static)
-        int i;
-        for (i = 0; i < nBodies; i++) {  // integrate position
-            p[i].x += p[i].vx * dt;
-            p[i].y += p[i].vy * dt;
-            p[i].z += p[i].vz * dt;
-        }
-
-#ifdef EXPORT
-        exportBodies(p, nBodies, iter);
-#endif
-
-        const double tElapsed = GetTimer() / 1000.0;
-        if (iter > 1) {  // First iter is warm up
-            totalTime += tElapsed;
-        }
-#ifndef SHMOO
-        printf("Iteration %d: %.3f seconds\n", iter, tElapsed);
-#endif
-    }
-    double avgTime = totalTime / (double)(nIters - 1);
-
-#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-    printf("Stopping papi monitors ...\n");
-    papi_helper_stop(papi_monitor);
-    printf("... stopped\n");
-    papi_helper_print(papi_monitor);
-#endif
-
-#ifdef SHMOO
-    printf("%d, %0.3f\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
-#else
-    printf(
-        "Average rate for iterations 2 through %d: %.3f steps per second, %.3f average per "
-        "iteration.\n",
-        nIters, (float)nIters / totalTime, avgTime);
-    printf("%d Bodies: average %0.3f Billion Interactions / second\n", nBodies,
-           1e-9 * nBodies * nBodies / avgTime);
-#endif
-    free(buf);
 }

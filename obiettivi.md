@@ -20,6 +20,13 @@ Obiettivi
   - latenza di rete
 
 
+Weak Scaling: Aumenti $N$ proporzionalmente al numero di nodi/core per mantenere il carico di lavoro per core costante.
+
+Strong Scaling: Tieni $N$ fisso (es. $N = 50.000$) e aumenti i thread/core (1, 2, 4, 8, 16, 32) per misurare lo Speedup ($S_p = \frac{T_1}{T_p}$) e
+l'Efficienza Parallela.
+
+Punto di Saturazione: Mostra dove la banda di memoria o la comunicazione di rete (in MPI) diventa il collo di bottiglia e ferma lo speedup (Legge di Amdahl).
+
 Aggiunte
 ======
 
