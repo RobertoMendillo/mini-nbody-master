@@ -111,8 +111,8 @@ int main(int argc, char** argv) {
 #ifdef DEBUG
     printf("distributing work...");
 #endif
-    MPI_Scatter(global_buffer, BODY_SIZE * blockSize, MPI_BYTE, local_buffer, BODY_SIZE * blockSize,
-                MPI_BYTE, MAIN_PROC, MPI_COMM_WORLD);
+    MPI_Scatter(global_buffer, BODY_SIZE * blockSize, MPI_BYTE, local_buffer, BODY_SIZE * blockSize, MPI_BYTE,
+                MAIN_PROC, MPI_COMM_WORLD);
 #ifdef DEBUG
     printf("... done.\n");
 #endif
@@ -135,8 +135,8 @@ int main(int argc, char** argv) {
     int iter;
     for (iter = 1; iter <= nIters; iter++) {
         // raccogliamo lo stato attuale dei corpi
-        MPI_Allgather(local_buffer, BODY_SIZE * blockSize, MPI_BYTE, global_buffer,
-                      BODY_SIZE * blockSize, MPI_BYTE, MPI_COMM_WORLD);
+        MPI_Allgather(local_buffer, BODY_SIZE * blockSize, MPI_BYTE, global_buffer, BODY_SIZE * blockSize, MPI_BYTE,
+                      MPI_COMM_WORLD);
 
         if (rank == MAIN_PROC) {
             printf("Iteration %d start ...", iter);
@@ -191,17 +191,22 @@ int main(int argc, char** argv) {
 #ifdef SHMOO
         printf("%d, %0.3f\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
 #else
-        printf(
-            "Average rate for iterations 2 "
-            "through %d: %.3f steps per "
-            "second, %.3f "
-            "average per iteration.\n",
-            nIters, (float)nIters / totalTime, avgTime);
-        printf(
-            "%d Bodies: average %0.3f "
-            "Billion Interactions / "
-            "second\n",
-            nBodies, 1e-9 * nBodies * nBodies / avgTime);
+        // printf(
+        //     "Average rate for iterations 2 "
+        //     "through %d: %.3f steps per "
+        //     "second, %.3f "
+        //     "average per iteration.\n",
+        //     nIters, (float)nIters / totalTime, avgTime);
+        // printf(
+        //     "%d Bodies: average %0.3f "
+        //     "Billion Interactions / "
+        //     "second\n",
+        //     nBodies, 1e-9 * nBodies * nBodies / avgTime);
+
+        int minutes = ((int)totalTime) / 60.0;
+        int seconds = ((int)totalTime % 60);
+
+        printf("Duration of simulation: %d m %d s\n", minutes, seconds);
 #endif
     }
     free(global_buffer);
