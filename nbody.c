@@ -53,8 +53,7 @@ int main(const int argc, const char** argv) {
     char* hostname = (char*)malloc(HOSTNAME_LENTGH * sizeof(char));
     gethostname(hostname, HOSTNAME_LENTGH);
     printf("Running on: %s", hostname);
-    printf("Running simulation of %d bodies on %d iterations with time step of %.2f\n", nBodies,
-           nIters, dt);
+    printf("Running simulation of %d bodies on %d iterations with time step of %.2f\n", nBodies, nIters, dt);
 
     randomizeBodies(buf, 7 * nBodies);  // Init pos / vel data
 
@@ -103,12 +102,16 @@ int main(const int argc, const char** argv) {
 #ifdef SHMOO
     printf("%d, %0.3f\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
 #else
-    printf(
-        "Average rate for iterations 2 through %d: %.3f steps per second, %.3f average per "
-        "iteration.\n",
-        nIters, (float)nIters / totalTime, avgTime);
-    printf("%d Bodies: average %0.3f Billion Interactions / second\n", nBodies,
-           1e-9 * nBodies * nBodies / avgTime);
+    // printf(
+    //     "Average rate for iterations 2 through %d: %.3f steps per second, %.3f average per "
+    //     "iteration.\n",
+    //     nIters, (float)nIters / totalTime, avgTime);
+    // printf("%d Bodies: average %0.3f Billion Interactions / second\n", nBodies,
+    //        1e-9 * nBodies * nBodies / avgTime);
+    int minutes = ((int)totalTime) / 60.0;
+    int seconds = ((int)totalTime % 60);
+
+    printf("Duration of simulation: %d m %d s\n", minutes, seconds);
 #endif
     free(buf);
 }
@@ -118,8 +121,7 @@ void randomizeBodies(float* data, int n) {
     int i;
     for (i = 0; i < n; i++) {
         data[i] = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
-        if (i % 7 == 6)
-            data[i] = (rand() / (float)RAND_MAX) * 100;  // set mass to a positive number
+        if (i % 7 == 6) data[i] = (rand() / (float)RAND_MAX) * 100;  // set mass to a positive number
     }
 }
 
@@ -142,10 +144,9 @@ void bodyForce(Body* p, float dt, int n) {
             // compute force on every direction
             // F = 1/r^2 * D/r = D/r^3
             // D = (dx/r, dy/r, dz/r)
-            float distSqr =
-                dx * dx + dy * dy + dz * dz + SOFTENING;   // total distance between the two bodies
-            float invDist = 1.0f / sqrtf(distSqr);         // --> 1/r
-            float invDist3 = invDist * invDist * invDist;  // --> 1/r^3
+            float distSqr = dx * dx + dy * dy + dz * dz + SOFTENING;  // total distance between the two bodies
+            float invDist = 1.0f / sqrtf(distSqr);                    // --> 1/r
+            float invDist3 = invDist * invDist * invDist;             // --> 1/r^3
 
             float massProduct = p[j].m * G;
 
