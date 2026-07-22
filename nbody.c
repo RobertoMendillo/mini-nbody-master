@@ -86,7 +86,7 @@ int main(const int argc, const char** argv) {
         if (iter > 1) {  // First iter is warm up
             totalTime += tElapsed;
         }
-#ifndef SHMOO
+#ifdef SHMOO
         printf("Iteration %d: %.3f seconds\n", iter, tElapsed);
 #endif
     }
