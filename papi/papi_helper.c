@@ -7,7 +7,6 @@
 static int event_codes[NUM_EVENTS] = {
     PAPI_L1_DCM,  // Livello 1 Data Cache Misses
     PAPI_L2_DCM,  // Livello 2 Data Cache Misses
-    PAPI_FP_INS   // Floating point instructions
 };
 
 int papi_helper_init(Papi_Monitor* monitor) {
