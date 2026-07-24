@@ -50,15 +50,8 @@ int main(int argc, char** argv) {
     Body* global_buffer = (Body*)malloc(bytes);
 
     // MPI ========
-    int rank,
-        size,  // indica il numero di
-               // processi in
-               // comunicazione
-        i;
-    MPI_Init(&argc,
-             &argv);  // inizializza la
-                      // comunicazione
-                      // con MPI
+    int rank, size, i;
+    MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -139,7 +132,9 @@ int main(int argc, char** argv) {
                       MPI_COMM_WORLD);
 
         if (rank == MAIN_PROC) {
+#ifdef DEBUG
             printf("Iteration %d start ...", iter);
+#endif
             StartTimer();
         }
 
@@ -164,7 +159,7 @@ int main(int argc, char** argv) {
                 totalTime += tElapsed;
             }
 
-#ifndef SHMOO
+#ifdef DEBUG
             printf(
                 " ... %.3f "
                 "seconds\n",
@@ -188,9 +183,6 @@ int main(int argc, char** argv) {
         papi_helper_print(papi_monitor);
 #endif
 
-#ifdef SHMOO
-        printf("%d, %0.3f\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
-#else
         // printf(
         //     "Average rate for iterations 2 "
         //     "through %d: %.3f steps per "
@@ -207,7 +199,6 @@ int main(int argc, char** argv) {
         int seconds = ((int)totalTime % 60);
 
         printf("Duration of simulation: %d m %d s\n", minutes, seconds);
-#endif
     }
     free(global_buffer);
     free(local_buffer);
