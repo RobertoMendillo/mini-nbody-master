@@ -144,8 +144,8 @@ int main(int argc, char** argv) {
 
         bodyForce(global_buffer, dt, nBodies, local_buffer, blockSize);  // compute interbody forces
 
-#pragma omp parallel for schedule(static)
         int i;
+#pragma omp parallel for schedule(static)
         for (i = 0; i < blockSize; i++) {  // integrate position
             local_buffer[i].x += local_buffer[i].vx * dt;
             local_buffer[i].y += local_buffer[i].vy * dt;
@@ -223,9 +223,9 @@ void randomizeBodies(Body* bodies, int n) {
 // computes interbody forces assuming
 // mass of bodies equal to 1
 void bodyForce(Body* p, float dt, int n, Body* localBuffer, int blocksize) {
-#pragma omp parallel for schedule(dynamic)
     int i;
     int j;
+#pragma omp parallel for schedule(dynamic) private(j)
     for (i = 0; i < blocksize; i++) {
         // total force on every axis
         // applied by every other body
