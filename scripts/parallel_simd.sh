@@ -3,7 +3,7 @@ OUTPUT_FILE="results_parallel_simd.data"
 
 printf "Esecuzione parallela\n" > $OUTPUT_FILE
 
-mpicc -O3 parallelized_nbody/nbody_mpi_simd.c ./papi/papi_helper.c -lm -I./papi/ -I. -fopenmp /usr/local/lib/libpapi.a -o nbody_mpi_simd.out
+mpicc -O3 -march=native -fopt-info-vec-optimized parallelized_nbody/nbody_mpi_simd.c ./papi/papi_helper.c -lm -I./papi/ -I. -fopenmp /usr/local/lib/libpapi.a -o nbody_mpi_simd.out
 
 printf "\n\n================ 30_0000 ================\n\n" >> $OUTPUT_FILE 2>&1
 
