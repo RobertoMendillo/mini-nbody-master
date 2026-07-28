@@ -58,6 +58,10 @@ int main(int argc, char** argv) {
     int blockSize = nBodies / size;
     int blockRemainder = nBodies % size;
 
+    if (rank == MAIN_PROC) {
+        StartTimer();
+    }
+
 #ifdef DEBUG
     printf("#%d Memory allocation for local buffer ... ", rank);
 #endif
@@ -130,13 +134,6 @@ int main(int argc, char** argv) {
         // raccogliamo lo stato attuale dei corpi
         MPI_Allgather(local_buffer, BODY_SIZE * blockSize, MPI_BYTE, global_buffer, BODY_SIZE * blockSize, MPI_BYTE,
                       MPI_COMM_WORLD);
-
-        if (rank == MAIN_PROC) {
-#ifdef DEBUG
-            printf("Iteration %d start ...", iter);
-#endif
-            StartTimer();
-        }
 
 #ifdef EXPORT
         if (rank == MAIN_PROC) exportBodies(global_buffer, nBodies, iter);
