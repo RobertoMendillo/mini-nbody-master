@@ -51,11 +51,11 @@ mpirun --mca btl self,openib -machinefile machinefile_p.txt nbody_mpi.out 200000
 
 printf "\n\n================ 400_0000 ================\n\n" >> $OUTPUT_FILE 2>&1
 
-printf "\n200_000 corpi tcpip/ethernet\n" >> $OUTPUT_FILE
+printf "\n400_000 corpi tcpip/ethernet\n" >> $OUTPUT_FILE
 mpirun --mca btl self,tcp --mca btl_tcp_if_include em2 -machinefile machinefile_p.txt nbody_mpi.out 400000 >> $OUTPUT_FILE 2>&1
 
-printf "\n200_000 corpi tcpip/infiniband\n" >> $OUTPUT_FILE
+printf "\n400_000 corpi tcpip/infiniband\n" >> $OUTPUT_FILE
 mpirun --mca btl self,tcp --mca btl_tcp_if_include ib0 -machinefile machinefile_p.txt nbody_mpi.out 400000 >> $OUTPUT_FILE 2>&1
 
-printf "\n200_000 corpi native/infiniband\n" >> $OUTPUT_FILE
+printf "\n400_000 corpi native/infiniband\n" >> $OUTPUT_FILE
 mpirun --mca btl self,openib -machinefile machinefile_p.txt nbody_mpi.out 400000 >> $OUTPUT_FILE 2>&1
