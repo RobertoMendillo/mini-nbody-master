@@ -49,11 +49,15 @@ int main(const int argc, const char** argv) {
     printf("... completed\n");
 #endif
 
+    StartTimer();
+
+#ifdef DEBUG
     const int HOSTNAME_LENTGH = 30;
     char* hostname = (char*)malloc(HOSTNAME_LENTGH * sizeof(char));
     gethostname(hostname, HOSTNAME_LENTGH);
     printf("Running on: %s", hostname);
     printf("Running simulation of %d bodies on %d iterations with time step of %.2f\n", nBodies, nIters, dt);
+#endif
 
     randomizeBodies(buf, 7 * nBodies);  // Init pos / vel data
 
@@ -66,11 +70,8 @@ int main(const int argc, const char** argv) {
 #endif
     int iter;
     for (iter = 1; iter <= nIters; iter++) {
-        StartTimer();
-
         bodyForce(p, dt, nBodies);  // compute interbody forces
 
-#pragma omp parallel for schedule(static)
         int i;
         for (i = 0; i < nBodies; i++) {  // integrate position
             p[i].x += p[i].vx * dt;
@@ -86,7 +87,7 @@ int main(const int argc, const char** argv) {
         if (iter > 1) {  // First iter is warm up
             totalTime += tElapsed;
         }
-#ifdef SHMOO
+#ifdef DEBUG
         printf("Iteration %d: %.3f seconds\n", iter, tElapsed);
 #endif
     }
@@ -99,7 +100,7 @@ int main(const int argc, const char** argv) {
     papi_helper_print(papi_monitor);
 #endif
 
-#ifdef SHMOO
+#ifdef DEBUG
     printf("%d, %0.3f\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
 #else
     // printf(
@@ -127,9 +128,7 @@ void randomizeBodies(float* data, int n) {
 
 // computes interbody forces assuming mass of bodies equal to 1
 void bodyForce(Body* p, float dt, int n) {
-#pragma omp parallel for schedule(dynamic)
-    int i;
-    int j;
+    int i, j;
     for (i = 0; i < n; i++) {
         // total force on every axis applied by every other body
         float Fx = 0.0f;
