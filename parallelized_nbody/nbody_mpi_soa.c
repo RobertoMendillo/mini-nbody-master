@@ -6,15 +6,16 @@
 #include "timer.h"
 
 #define SOFTENING 1e-9f
+#define MAIN_PROC 0
 
 typedef struct {
     float *x, *y, *z, *vx, *vy, *vz;
 } BodySystem;
 
 void randomizeBodies(BodySystem* bodies, int n);
-void bodyForce(BodySystem p, float dt, int n);
+void bodyForce(BodySystem p, float dt, int n, BodySystem localBuffer, int blocksize);
 
-int main(const int argc, const char** argv) {
+int main(int argc, char** argv) {
     int nBodies = 30000;
     // reading number of bodies as
     // command line argument
@@ -25,20 +26,17 @@ int main(const int argc, const char** argv) {
     float dt = 0.01f;  // time step
     if (argc > 3) dt = atof(argv[3]);
 
-    const float dt = 0.01f;  // time step
-    const int nIters = 10;   // simulation iterations
+    int body_size = 6 * sizeof(float);
 
-    const BODY_SIZE = 6 * sizeof(float);
-
-    int bytes = nBodies * BODY_SIZE;
+    int bytes = nBodies * body_size;
     float* global_buffer = (float*)malloc(bytes);
-    BodySystem p;
-    p.x = global_buffer + 0 * nBodies;
-    p.y = global_buffer + 1 * nBodies;
-    p.z = global_buffer + 2 * nBodies;
-    p.vx = global_buffer + 3 * nBodies;
-    p.vy = global_buffer + 4 * nBodies;
-    p.vz = global_buffer + 5 * nBodies;
+    BodySystem bodysystem_global;
+    bodysystem_global.x = global_buffer + 0 * nBodies;
+    bodysystem_global.y = global_buffer + 1 * nBodies;
+    bodysystem_global.z = global_buffer + 2 * nBodies;
+    bodysystem_global.vx = global_buffer + 3 * nBodies;
+    bodysystem_global.vy = global_buffer + 4 * nBodies;
+    bodysystem_global.vz = global_buffer + 5 * nBodies;
 
     // MPI ========
     int rank, size, i;
@@ -53,7 +51,14 @@ int main(const int argc, const char** argv) {
         StartTimer();
     }
 
-    BodySystem* local_buffer = (BodySystem*)malloc((blockSize + blockRemainder) * BODY_SIZE);
+    float* local_buffer = (float*)malloc((blockSize + blockRemainder) * body_size);
+    BodySystem bodysystem_local;
+    bodysystem_local.x = local_buffer + 0 * nBodies;
+    bodysystem_local.y = local_buffer + 1 * nBodies;
+    bodysystem_local.z = local_buffer + 2 * nBodies;
+    bodysystem_local.vx = local_buffer + 3 * nBodies;
+    bodysystem_local.vy = local_buffer + 4 * nBodies;
+    bodysystem_local.vz = local_buffer + 5 * nBodies;
 
     if (rank == MAIN_PROC) {
         printf(
@@ -63,10 +68,10 @@ int main(const int argc, const char** argv) {
             "%.2f on %d nodes\n",
             nBodies, nIters, dt, size);
 
-        randomizeBodies(global_buffer, nBodies);  // Init position, velocity, mass
+        randomizeBodies((BodySystem*)global_buffer, nBodies);  // Init position, velocity, mass
     }
 
-    MPI_Scatter(global_buffer, BODY_SIZE * blockSize, MPI_BYTE, local_buffer, BODY_SIZE * blockSize, MPI_BYTE,
+    MPI_Scatter(global_buffer, body_size * blockSize, MPI_BYTE, local_buffer, body_size * blockSize, MPI_BYTE,
                 MAIN_PROC, MPI_COMM_WORLD);
 
     double totalTime = 0.0;
@@ -74,16 +79,16 @@ int main(const int argc, const char** argv) {
 
     int iter;
     for (iter = 1; iter <= nIters; iter++) {
-        MPI_Allgather(local_buffer, BODY_SIZE * blockSize, MPI_BYTE, global_buffer, BODY_SIZE * blockSize, MPI_BYTE,
+        MPI_Allgather(local_buffer, body_size * blockSize, MPI_BYTE, global_buffer, body_size * blockSize, MPI_BYTE,
                       MPI_COMM_WORLD);
 
-        bodyForce(global_buffer, dt, nBodies, local_buffer, blockSize);  // compute interbody forces
+        bodyForce(bodysystem_global, dt, nBodies, bodysystem_local, blockSize);  // compute interbody forces
 
 #pragma omp parallel for schedule(static)
         for (int i = 0; i < nBodies; i++) {  // integrate position
-            p.x[i] += p.vx[i] * dt;
-            p.y[i] += p.vy[i] * dt;
-            p.z[i] += p.vz[i] * dt;
+            bodysystem_global.x[i] += bodysystem_global.vx[i] * dt;
+            bodysystem_global.y[i] += bodysystem_global.vy[i] * dt;
+            bodysystem_global.z[i] += bodysystem_global.vz[i] * dt;
         }
 
         const double tElapsed = GetTimer() / 1000.0;
@@ -136,7 +141,7 @@ void randomizeBodies(BodySystem* bodies, int n) {
     }
 }
 
-void bodyForce(BodySystem p, float dt, int n, BodySystem* localBuffer, int blocksize) {
+void bodyForce(BodySystem p, float dt, int n, BodySystem localBuffer, int blocksize) {
     int i, j;
 #pragma omp parallel for schedule(dynamic) private(j)
     for (i = 0; i < blocksize; i++) {
