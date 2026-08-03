@@ -65,7 +65,9 @@ int main(int argc, char** argv) {
 #ifdef DEBUG
     printf("#%d Memory allocation for local buffer ... ", rank);
 #endif
+
     Body* local_buffer = (Body*)malloc((blockSize + blockRemainder) * sizeof(Body));
+
 #ifdef DEBUG
     printf(" ... done.\n");
 #endif
@@ -99,6 +101,7 @@ int main(int argc, char** argv) {
         printf("Randomizing bodies ...");
 #endif
         randomizeBodies(global_buffer, nBodies);  // Init position, velocity, mass
+
 #ifdef DEBUG
         printf("... done.\n");
 #endif
@@ -152,9 +155,6 @@ int main(int argc, char** argv) {
         double tElapsed;
         if (rank == MAIN_PROC) {
             tElapsed = GetTimer() / 1000.0;
-            if (iter > 1) {  // First iter is warm up
-                totalTime += tElapsed;
-            }
 
 #ifdef DEBUG
             printf(
@@ -167,6 +167,7 @@ int main(int argc, char** argv) {
     }  // end of iterations
 
     if (rank == MAIN_PROC) {
+        totalTime = GetTimer() / 1000.0;
         double avgTime = totalTime / (double)(nIters - 1);
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
