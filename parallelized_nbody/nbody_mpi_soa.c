@@ -71,14 +71,15 @@ int main(int argc, char** argv) {
         StartTimer();
     }
 
-    float* local_buffer = (float*)malloc((blockSize + blockRemainder) * body_size);
+    int local_capacity = blockSize + blockRemainder;
+    float* local_buffer = (float*)malloc(local_capacity * body_size);
     BodySystem bodysystem_local;
-    bodysystem_local.x = local_buffer + 0 * nBodies;
-    bodysystem_local.y = local_buffer + 1 * nBodies;
-    bodysystem_local.z = local_buffer + 2 * nBodies;
-    bodysystem_local.vx = local_buffer + 3 * nBodies;
-    bodysystem_local.vy = local_buffer + 4 * nBodies;
-    bodysystem_local.vz = local_buffer + 5 * nBodies;
+    bodysystem_local.x = local_buffer + 0 * local_capacity;
+    bodysystem_local.y = local_buffer + 1 * local_capacity;
+    bodysystem_local.z = local_buffer + 2 * local_capacity;
+    bodysystem_local.vx = local_buffer + 3 * local_capacity;
+    bodysystem_local.vy = local_buffer + 4 * local_capacity;
+    bodysystem_local.vz = local_buffer + 5 * local_capacity;
 
     if (rank == MAIN_PROC) {
         printf(
@@ -106,10 +107,10 @@ int main(int argc, char** argv) {
 
         int i;
 #pragma omp parallel for schedule(static)
-        for (i = 0; i < nBodies; i++) {  // integrate position
-            bodysystem_global.x[i] += bodysystem_global.vx[i] * dt;
-            bodysystem_global.y[i] += bodysystem_global.vy[i] * dt;
-            bodysystem_global.z[i] += bodysystem_global.vz[i] * dt;
+        for (i = 0; i < blockSize; i++) {  // integrate local positions
+            bodysystem_local.x[i] += bodysystem_local.vx[i] * dt;
+            bodysystem_local.y[i] += bodysystem_local.vy[i] * dt;
+            bodysystem_local.z[i] += bodysystem_local.vz[i] * dt;
         }
 
         const double tElapsed = GetTimer() / 1000.0;
@@ -163,8 +164,19 @@ void randomizeBodies(BodySystem* bodies, int n) {
 }
 
 void bodyForce(BodySystem p, float dt, int n, BodySystem localBuffer, int blocksize) {
+    // Restrict pointers to tell compiler there is no aliasing
+    const float* restrict px = p.x;
+    const float* restrict py = p.y;
+    const float* restrict pz = p.z;
+
+    float* restrict lx = localBuffer.x;
+    float* restrict ly = localBuffer.y;
+    float* restrict lz = localBuffer.z;
+    float* restrict lvx = localBuffer.vx;
+    float* restrict lvy = localBuffer.vy;
+    float* restrict lvz = localBuffer.vz;
     int i, j;
-#pragma omp parallel for schedule(dynamic) private(j)
+#pragma omp parallel for schedule(static)
     for (i = 0; i < blocksize; i++) {
         float Fx = 0.0f;
         float Fy = 0.0f;
