@@ -136,7 +136,7 @@ int main(int argc, char** argv) {
     }  // end of iterations
 
     if (rank == MAIN_PROC) {
-        totalTime = GetTimer();
+        totalTime = GetTimer() / 1000;
         double avgTime = totalTime / (double)(nIters - 1);
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
@@ -166,57 +166,57 @@ int main(int argc, char** argv) {
         int seconds = ((int)totalTime % 60);
 
         printf("Duration of simulation: %d m %d s\n", minutes, seconds);
-
-        free(global_buffer);
-        free(local_buffer);
-        MPI_Finalize();
     }
+    free(global_buffer);
+    free(local_buffer);
+    MPI_Finalize();
+}
 
-    void randomizeBodies(BodySystem * bodies, int n) {
-        int i;
-        float* data = (float*)bodies;
-        for (i = 0; i < n; i++) {
-            data[i] = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
-        }
+void randomizeBodies(BodySystem* bodies, int n) {
+    int i;
+    float* data = (float*)bodies;
+    for (i = 0; i < n; i++) {
+        data[i] = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
     }
+}
 
-    void bodyForce(BodySystem p, float dt, int n, BodySystem localBuffer, int blocksize) {
-        // Use __restrict__ instead of restrict
-        const float* __restrict__ px = p.x;
-        const float* __restrict__ py = p.y;
-        const float* __restrict__ pz = p.z;
+void bodyForce(BodySystem p, float dt, int n, BodySystem localBuffer, int blocksize) {
+    // Use __restrict__ instead of restrict
+    const float* __restrict__ px = p.x;
+    const float* __restrict__ py = p.y;
+    const float* __restrict__ pz = p.z;
 
-        float* __restrict__ lx = localBuffer.x;
-        float* __restrict__ ly = localBuffer.y;
-        float* __restrict__ lz = localBuffer.z;
-        float* __restrict__ lvx = localBuffer.vx;
-        float* __restrict__ lvy = localBuffer.vy;
-        float* __restrict__ lvz = localBuffer.vz;
+    float* __restrict__ lx = localBuffer.x;
+    float* __restrict__ ly = localBuffer.y;
+    float* __restrict__ lz = localBuffer.z;
+    float* __restrict__ lvx = localBuffer.vx;
+    float* __restrict__ lvy = localBuffer.vy;
+    float* __restrict__ lvz = localBuffer.vz;
 
-        int i;
+    int i;
 #pragma omp parallel for schedule(static)
-        for (i = 0; i < blocksize; i++) {
-            float Fx = 0.0f, Fy = 0.0f, Fz = 0.0f;
+    for (i = 0; i < blocksize; i++) {
+        float Fx = 0.0f, Fy = 0.0f, Fz = 0.0f;
 
-            float lxi = lx[i], lyi = ly[i], lzi = lz[i];
+        float lxi = lx[i], lyi = ly[i], lzi = lz[i];
 
-            int j;
+        int j;
 #pragma omp simd reduction(+ : Fx, Fy, Fz)
-            for (j = 0; j < n; j++) {
-                float dx = px[j] - lxi;
-                float dy = py[j] - lyi;
-                float dz = pz[j] - lzi;
-                float distSqr = dx * dx + dy * dy + dz * dz + SOFTENING;
-                float invDist = 1.0f / sqrtf(distSqr);
-                float invDist3 = invDist * invDist * invDist;
+        for (j = 0; j < n; j++) {
+            float dx = px[j] - lxi;
+            float dy = py[j] - lyi;
+            float dz = pz[j] - lzi;
+            float distSqr = dx * dx + dy * dy + dz * dz + SOFTENING;
+            float invDist = 1.0f / sqrtf(distSqr);
+            float invDist3 = invDist * invDist * invDist;
 
-                Fx += dx * invDist3;
-                Fy += dy * invDist3;
-                Fz += dz * invDist3;
-            }
-
-            lvx[i] += dt * Fx;
-            lvy[i] += dt * Fy;
-            lvz[i] += dt * Fz;
+            Fx += dx * invDist3;
+            Fy += dy * invDist3;
+            Fz += dz * invDist3;
         }
+
+        lvx[i] += dt * Fx;
+        lvy[i] += dt * Fy;
+        lvz[i] += dt * Fz;
     }
+}
