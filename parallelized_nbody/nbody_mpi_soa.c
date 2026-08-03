@@ -164,26 +164,26 @@ void randomizeBodies(BodySystem* bodies, int n) {
 }
 
 void bodyForce(BodySystem p, float dt, int n, BodySystem localBuffer, int blocksize) {
-    // Restrict pointers to tell compiler there is no aliasing
-    const float* restrict px = p.x;
-    const float* restrict py = p.y;
-    const float* restrict pz = p.z;
+    // Use __restrict__ instead of restrict
+    const float* __restrict__ px = p.x;
+    const float* __restrict__ py = p.y;
+    const float* __restrict__ pz = p.z;
 
-    float* restrict lx = localBuffer.x;
-    float* restrict ly = localBuffer.y;
-    float* restrict lz = localBuffer.z;
-    float* restrict lvx = localBuffer.vx;
-    float* restrict lvy = localBuffer.vy;
-    float* restrict lvz = localBuffer.vz;
-    int i, j;
+    float* __restrict__ lx = localBuffer.x;
+    float* __restrict__ ly = localBuffer.y;
+    float* __restrict__ lz = localBuffer.z;
+    float* __restrict__ lvx = localBuffer.vx;
+    float* __restrict__ lvy = localBuffer.vy;
+    float* __restrict__ lvz = localBuffer.vz;
+
 #pragma omp parallel for schedule(static)
-    for (i = 0; i < blocksize; i++) {
+    for (int i = 0; i < blocksize; i++) {
         float Fx = 0.0f, Fy = 0.0f, Fz = 0.0f;
 
         float lxi = lx[i], lyi = ly[i], lzi = lz[i];
 
 #pragma omp simd reduction(+ : Fx, Fy, Fz)
-        for (j = 0; j < n; j++) {
+        for (int j = 0; j < n; j++) {
             float dx = px[j] - lxi;
             float dy = py[j] - lyi;
             float dz = pz[j] - lzi;
