@@ -47,6 +47,22 @@ int main(int argc, char** argv) {
     int blockSize = nBodies / size;
     int blockRemainder = nBodies % size;
 
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+    Papi_Monitor* papi_monitor;
+    if (rank == MAIN_PROC) {
+        papi_monitor = malloc(sizeof(Papi_Monitor));
+#ifdef DEBUG
+        printf("Init papi monitors ...\n");
+#endif
+
+        papi_helper_init(papi_monitor);
+
+#ifdef DEBUG
+        printf("... completed\n");
+#endif
+    }
+#endif
+
     if (rank == MAIN_PROC) {
         StartTimer();
     }
@@ -85,7 +101,8 @@ int main(int argc, char** argv) {
         bodyForce(bodysystem_global, dt, nBodies, bodysystem_local, blockSize);  // compute interbody forces
 
 #pragma omp parallel for schedule(static)
-        for (int i = 0; i < nBodies; i++) {  // integrate position
+        int i;
+        for (i = 0; i < nBodies; i++) {  // integrate position
             bodysystem_global.x[i] += bodysystem_global.vx[i] * dt;
             bodysystem_global.y[i] += bodysystem_global.vy[i] * dt;
             bodysystem_global.z[i] += bodysystem_global.vz[i] * dt;
