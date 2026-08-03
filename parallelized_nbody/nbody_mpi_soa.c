@@ -82,12 +82,13 @@ int main(int argc, char** argv) {
     bodysystem_local.vz = local_buffer + 5 * local_capacity;
 
     if (rank == MAIN_PROC) {
-        printf(
-            "Running simulation of %d "
-            "bodies on %d iterations with "
-            "time step of "
-            "%.2f on %d nodes\n",
-            nBodies, nIters, dt, size);
+        printf("processors, bodies, time\n");
+        // printf(
+        //     "Running simulation of %d "
+        //     "bodies on %d iterations with "
+        //     "time step of "
+        //     "%.2f on %d nodes\n",
+        //     nBodies, nIters, dt, size);
 
         randomizeBodies((BodySystem*)global_buffer, nBodies);  // Init position, velocity, mass
     }
@@ -165,7 +166,8 @@ int main(int argc, char** argv) {
         int minutes = ((int)totalTime) / 60.0;
         int seconds = ((int)totalTime % 60);
 
-        printf("Duration of simulation: %d m %d s\n", minutes, seconds);
+        // printf("Duration of simulation: %d m %d s\n", minutes, seconds);
+        printf("%d, %d, %d\n", , size, bodies, totalTime);
     }
     free(global_buffer);
     free(local_buffer);
