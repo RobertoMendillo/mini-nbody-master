@@ -59,3 +59,37 @@ mpirun --mca btl self,tcp --mca btl_tcp_if_include ib0 -machinefile machinefile_
 
 printf "\n400_000 corpi native/infiniband\n" >> $OUTPUT_FILE
 mpirun --mca btl self,openib -machinefile machinefile_p.txt nbody_mpi_simd.out 400000 >> $OUTPUT_FILE 2>&1
+
+printf "\n\n================ 600_0000 ================\n\n" >> $OUTPUT_FILE 2>&1
+
+printf "\n600_000 corpi tcpip/ethernet\n" >> $OUTPUT_FILE
+mpirun --mca btl self,tcp --mca btl_tcp_if_include em2 -machinefile machinefile_p.txt nbody_mpi_simd.out 600000 >> $OUTPUT_FILE 2>&1
+
+printf "\n600_000 corpi tcpip/infiniband\n" >> $OUTPUT_FILE
+mpirun --mca btl self,tcp --mca btl_tcp_if_include ib0 -machinefile machinefile_p.txt nbody_mpi_simd.out 600000 >> $OUTPUT_FILE 2>&1
+
+printf "\n600_000 corpi native/infiniband\n" >> $OUTPUT_FILE
+mpirun --mca btl self,openib -machinefile machinefile_p.txt nbody_mpi_simd.out 600000 >> $OUTPUT_FILE 2>&1
+
+
+printf "\n\n================ 800_0000 ================\n\n" >> $OUTPUT_FILE 2>&1
+
+printf "\n800_000 corpi tcpip/ethernet\n" >> $OUTPUT_FILE
+mpirun --mca btl self,tcp --mca btl_tcp_if_include em2 -machinefile machinefile_p.txt nbody_mpi_simd.out 800000 >> $OUTPUT_FILE 2>&1
+
+printf "\n800_000 corpi tcpip/infiniband\n" >> $OUTPUT_FILE
+mpirun --mca btl self,tcp --mca btl_tcp_if_include ib0 -machinefile machinefile_p.txt nbody_mpi_simd.out 800000 >> $OUTPUT_FILE 2>&1
+
+printf "\n800_000 corpi native/infiniband\n" >> $OUTPUT_FILE
+mpirun --mca btl self,openib -machinefile machinefile_p.txt nbody_mpi_simd.out 800000 >> $OUTPUT_FILE 2>&1
+
+printf "\n\n================ 1_000_0000 ================\n\n" >> $OUTPUT_FILE 2>&1
+
+printf "\n1_000_000 corpi tcpip/ethernet\n" >> $OUTPUT_FILE
+mpirun --mca btl self,tcp --mca btl_tcp_if_include em2 -machinefile machinefile_p.txt nbody_mpi_simd.out 1000000 >> $OUTPUT_FILE 2>&1
+
+printf "\n1_000_000 corpi tcpip/infiniband\n" >> $OUTPUT_FILE
+mpirun --mca btl self,tcp --mca btl_tcp_if_include ib0 -machinefile machinefile_p.txt nbody_mpi_simd.out 1000000 >> $OUTPUT_FILE 2>&1
+
+printf "\n1_000_000 corpi native/infiniband\n" >> $OUTPUT_FILE
+mpirun --mca btl self,openib -machinefile machinefile_p.txt nbody_mpi_simd.out 1000000 >> $OUTPUT_FILE 2>&1
