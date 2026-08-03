@@ -104,8 +104,8 @@ int main(int argc, char** argv) {
 
         bodyForce(bodysystem_global, dt, nBodies, bodysystem_local, blockSize);  // compute interbody forces
 
-#pragma omp parallel for schedule(static)
         int i;
+#pragma omp parallel for schedule(static)
         for (i = 0; i < nBodies; i++) {  // integrate position
             bodysystem_global.x[i] += bodysystem_global.vx[i] * dt;
             bodysystem_global.y[i] += bodysystem_global.vy[i] * dt;
