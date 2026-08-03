@@ -176,14 +176,16 @@ void bodyForce(BodySystem p, float dt, int n, BodySystem localBuffer, int blocks
     float* __restrict__ lvy = localBuffer.vy;
     float* __restrict__ lvz = localBuffer.vz;
 
+    int i;
 #pragma omp parallel for schedule(static)
-    for (int i = 0; i < blocksize; i++) {
+    for (i = 0; i < blocksize; i++) {
         float Fx = 0.0f, Fy = 0.0f, Fz = 0.0f;
 
         float lxi = lx[i], lyi = ly[i], lzi = lz[i];
 
+        int j;
 #pragma omp simd reduction(+ : Fx, Fy, Fz)
-        for (int j = 0; j < n; j++) {
+        for (j = 0; j < n; j++) {
             float dx = px[j] - lxi;
             float dy = py[j] - lyi;
             float dz = pz[j] - lzi;
