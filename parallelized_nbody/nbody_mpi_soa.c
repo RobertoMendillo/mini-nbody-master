@@ -5,6 +5,10 @@
 
 #include "timer.h"
 
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+#include "papi_helper.h"
+#endif
+
 #define SOFTENING 1e-9f
 #define MAIN_PROC 0
 
