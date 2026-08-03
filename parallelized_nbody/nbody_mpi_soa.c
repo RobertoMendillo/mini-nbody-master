@@ -106,11 +106,18 @@ int main(int argc, char** argv) {
         bodyForce(bodysystem_global, dt, nBodies, bodysystem_local, blockSize);  // compute interbody forces
 
         int i;
+        float* __restrict__ lx = bodysystem_local.x;
+        float* __restrict__ ly = bodysystem_local.y;
+        float* __restrict__ lz = bodysystem_local.z;
+        const float* __restrict__ lvx = bodysystem_local.vx;
+        const float* __restrict__ lvy = bodysystem_local.vy;
+        const float* __restrict__ lvz = bodysystem_local.vz;
+
 #pragma omp parallel for schedule(static)
-        for (i = 0; i < blockSize; i++) {  // integrate local positions
-            bodysystem_local.x[i] += bodysystem_local.vx[i] * dt;
-            bodysystem_local.y[i] += bodysystem_local.vy[i] * dt;
-            bodysystem_local.z[i] += bodysystem_local.vz[i] * dt;
+        for (i = 0; i < blockSize; i++) {
+            lx[i] += lvx[i] * dt;
+            ly[i] += lvy[i] * dt;
+            lz[i] += lvz[i] * dt;
         }
 
         const double tElapsed = GetTimer() / 1000.0;
