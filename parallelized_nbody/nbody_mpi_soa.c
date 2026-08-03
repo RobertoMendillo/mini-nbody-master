@@ -178,15 +178,15 @@ void bodyForce(BodySystem p, float dt, int n, BodySystem localBuffer, int blocks
     int i, j;
 #pragma omp parallel for schedule(static)
     for (i = 0; i < blocksize; i++) {
-        float Fx = 0.0f;
-        float Fy = 0.0f;
-        float Fz = 0.0f;
+        float Fx = 0.0f, Fy = 0.0f, Fz = 0.0f;
+
+        float lxi = lx[i], lyi = ly[i], lzi = lz[i];
 
 #pragma omp simd reduction(+ : Fx, Fy, Fz)
         for (j = 0; j < n; j++) {
-            float dy = p.y[j] - localBuffer.y[i];
-            float dz = p.z[j] - localBuffer.z[i];
-            float dx = p.x[j] - localBuffer.x[i];
+            float dx = px[j] - lxi;
+            float dy = py[j] - lyi;
+            float dz = pz[j] - lzi;
             float distSqr = dx * dx + dy * dy + dz * dz + SOFTENING;
             float invDist = 1.0f / sqrtf(distSqr);
             float invDist3 = invDist * invDist * invDist;
@@ -196,8 +196,8 @@ void bodyForce(BodySystem p, float dt, int n, BodySystem localBuffer, int blocks
             Fz += dz * invDist3;
         }
 
-        localBuffer.vx[i] += dt * Fx;
-        localBuffer.vy[i] += dt * Fy;
-        localBuffer.vz[i] += dt * Fz;
+        lvx[i] += dt * Fx;
+        lvy[i] += dt * Fy;
+        lvz[i] += dt * Fz;
     }
 }
