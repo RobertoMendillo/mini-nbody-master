@@ -96,6 +96,19 @@ int main(int argc, char** argv) {
                 MAIN_PROC, MPI_COMM_WORLD);
 
     double totalTime = 0.0;
+
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+    if (rank == MAIN_PROC) {
+#ifdef DEBUG
+        printf("Starting papi monitors ...\n");
+#endif
+        papi_helper_start(papi_monitor);
+#ifdef DEBUG
+        printf("... started\n");
+#endif
+    }
+#endif
+
     MPI_Barrier(MPI_COMM_WORLD);
 
     int iter;
