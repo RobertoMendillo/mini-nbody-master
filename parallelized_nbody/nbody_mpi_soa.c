@@ -135,8 +135,6 @@ int main(int argc, char** argv) {
 
         const double tElapsed = GetTimer() / 1000.0;
     }
-    totalTime = GetTimer();
-    double avgTime = totalTime / (double)(nIters - 1);
 
     if (rank == MAIN_PROC) {
         totalTime = GetTimer();
