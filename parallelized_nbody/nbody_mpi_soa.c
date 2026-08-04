@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
         int seconds = ((int)totalTime % 60);
 
         // printf("Duration of simulation: %d m %d s\n", minutes, seconds);
-        printf("%d, %d, %d\n", , size, bodies, totalTime);
+        printf("%d, %d, %d\n", , size, nBodies, totalTime);
     }
     free(global_buffer);
     free(local_buffer);
