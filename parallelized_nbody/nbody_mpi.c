@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
     printf("... done.\n");
 #endif
 
-    double totalTime = 0.0;  // simulation total execution time
+    double totalTime = 0.0;  // simulation total execution time (ms)
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
     if (rank == MAIN_PROC) {
@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
     }  // end of iterations
 
     if (rank == MAIN_PROC) {
-        totalTime = GetTimer() / 1000.0;
+        totalTime = GetTimer() / 1000.0;  // elapsed time in seconds
         double avgTime = totalTime / (double)(nIters - 1);
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
@@ -197,7 +197,7 @@ int main(int argc, char** argv) {
         int seconds = ((int)totalTime % 60);
 
         // printf("Duration of simulation: %d m %d s\n", minutes, seconds);
-        printf("%d, %d, %d\n", size, nBodies, totalTime);
+        printf("%d, %d, %d\n", size, nBodies, (int)totalTime);
     }
     free(global_buffer);
     free(local_buffer);
