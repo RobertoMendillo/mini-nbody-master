@@ -90,7 +90,6 @@ int main(int argc, char** argv) {
 #endif
 
     if (rank == MAIN_PROC) {
-        printf("processors, bodies, time\n");
         // printf(
         //     "Running simulation of %d "
         //     "bodies on %d iterations with "
@@ -179,7 +178,7 @@ int main(int argc, char** argv) {
 #ifdef DEBUG
         printf("... stopped\n");
 #endif
-        papi_helper_print(papi_monitor);
+        // papi_helper_print(papi_monitor);
 #endif
 
         // printf(
