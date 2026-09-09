@@ -28,7 +28,7 @@ mpirun --mca btl self,tcp --mca btl_tcp_if_include ib0 -machinefile machinefile_
 printf "\nnative/infiniband, " >> $OUTPUT_FILE
 mpirun --mca btl self,openib -machinefile machinefile_p.txt nbody_mpi.out 50000 >> $OUTPUT_FILE 2>&1
 
-printf "\n\n================ 100_0000 ================\n\n" >> $OUTPUT_FILE 2>&1
+# printf "\n\n================ 100_0000 ================\n\n" >> $OUTPUT_FILE 2>&1
 
 printf "\ntcpip/ethernet, " >> $OUTPUT_FILE
 mpirun --mca btl self,tcp --mca btl_tcp_if_include em2 -machinefile machinefile_p.txt nbody_mpi.out 100000 >> $OUTPUT_FILE 2>&1
@@ -61,7 +61,7 @@ mpirun --mca btl self,tcp --mca btl_tcp_if_include ib0 -machinefile machinefile_
 printf "\nnative/infiniband, " >> $OUTPUT_FILE
 mpirun --mca btl self,openib -machinefile machinefile_p.txt nbody_mpi.out 400000 >> $OUTPUT_FILE 2>&1
 
-printf "\n\n================ 600_0000 ================\n\n" >> $OUTPUT_FILE 2>&1
+# printf "\n\n================ 600_0000 ================\n\n" >> $OUTPUT_FILE 2>&1
 
 printf "\ntcpip/ethernet, " >> $OUTPUT_FILE
 mpirun --mca btl self,tcp --mca btl_tcp_if_include em2 -machinefile machinefile_p.txt nbody_mpi.out 600000 >> $OUTPUT_FILE 2>&1

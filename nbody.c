@@ -82,33 +82,20 @@ int main(const int argc, const char** argv) {
 #ifdef EXPORT
         exportBodies(p, nBodies, iter);
 #endif
-
-        const double tElapsed = GetTimer() / 1000.0;
-        if (iter > 1) {  // First iter is warm up
-            totalTime += tElapsed;
-        }
-#ifdef DEBUG
-        printf("Iteration %d: %.3f seconds\n", iter, tElapsed);
-#endif
     }
-    double avgTime = totalTime / (double)(nIters - 1);
+    totalTime = GetTimer() / 1000;
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-    printf("Stopping papi monitors ...\n");
-    papi_helper_stop(papi_monitor);
-    printf("... stopped\n");
-    papi_helper_print(papi_monitor);
+    // printf("Stopping papi monitors ...\n");
+    // papi_helper_stop(papi_monitor);
+    // printf("... stopped\n");
+    // papi_helper_print(papi_monitor);
 #endif
+
+    printf("%d, %d\n", nBodies, (int)totalTime);
 
 #ifdef DEBUG
     printf("%d, %0.3f\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
-#else
-    // printf(
-    //     "Average rate for iterations 2 through %d: %.3f steps per second, %.3f average per "
-    //     "iteration.\n",
-    //     nIters, (float)nIters / totalTime, avgTime);
-    // printf("%d Bodies: average %0.3f Billion Interactions / second\n", nBodies,
-    //        1e-9 * nBodies * nBodies / avgTime);
     int minutes = ((int)totalTime) / 60.0;
     int seconds = ((int)totalTime % 60);
 
