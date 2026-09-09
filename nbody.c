@@ -64,9 +64,13 @@ int main(const int argc, const char** argv) {
     double totalTime = 0.0;  // simulation total execution time
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+#ifdef DEBUG
     printf("Starting papi monitors ...\n");
+#endif
     papi_helper_start(papi_monitor);
+#ifdef DEBUG
     printf("... started\n");
+#endif
 #endif
     int iter;
     for (iter = 1; iter <= nIters; iter++) {
@@ -86,10 +90,14 @@ int main(const int argc, const char** argv) {
     totalTime = GetTimer() / 1000;
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-    // printf("Stopping papi monitors ...\n");
-    // papi_helper_stop(papi_monitor);
-    // printf("... stopped\n");
-    // papi_helper_print(papi_monitor);
+#ifdef DEBUG
+    printf("Stopping papi monitors ...\n");
+#endif
+    papi_helper_stop(papi_monitor);
+#ifdef DEBUG
+    printf("... stopped\n");
+    papi_helper_print(papi_monitor);
+#endif
 #endif
 
     printf("%d, %d\n", nBodies, (int)totalTime);
