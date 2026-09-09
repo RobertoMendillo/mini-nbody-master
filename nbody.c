@@ -44,9 +44,13 @@ int main(const int argc, const char** argv) {
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
     Papi_Monitor* papi_monitor = malloc(sizeof(Papi_Monitor));
+#ifdef DEBUG
     printf("Init papi monitors ...\n");
+#endif
     papi_helper_init(papi_monitor);
+#ifdef DEBUG
     printf("... completed\n");
+#endif
 #endif
 
     StartTimer();
