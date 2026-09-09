@@ -2,7 +2,7 @@
 OUTPUT_FILE="results.data"
 
 # printf "Esecuzione sequenziale\n" > $OUTPUT_FILE
-
+printf "" > $OUTPUT_FILE
 mpicc -O3 nbody.c ./papi/papi_helper.c -lm -I./papi/ /usr/local/lib/libpapi.a -o nbody.out
 
 # printf "\n\n================ 30_0000 ================\n\n" >> $OUTPUT_FILE 2>&1
