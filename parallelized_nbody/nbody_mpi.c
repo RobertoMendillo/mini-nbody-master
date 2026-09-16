@@ -3,12 +3,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-#include "papi_helper.h"
-#endif
-
 #ifdef EXPORT
 #include "utils.h"
+#endif
+
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+#include "papi_helper.h"
 #endif
 
 #define SOFTENING \
@@ -23,8 +23,8 @@ typedef struct {
     float x, y, z, vx, vy, vz, m;
 } Body;
 
-static void randomizeBodies(Body *data, int n);
 
+static void randomizeBodies(Body *data, int n);
 static void bodyForce(Body *p, float dt, int n, Body *localBuffer, int blocksize);
 
 
@@ -93,12 +93,6 @@ int main(int argc, char **argv) {
 #endif
 
     if (rank == MAIN_PROC) {
-        // printf(
-        //     "Running simulation of %d "
-        //     "bodies on %d iterations with "
-        //     "time step of "
-        //     "%.2f on %d nodes\n",
-        //     nBodies, nIters, dt, size);
 
 #ifdef DEBUG
         printf("Randomizing bodies ...");
