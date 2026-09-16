@@ -3,20 +3,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "timer.h"
-
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
 #include "papi_helper.h"
 #endif
 
 #define SOFTENING 1e-9f
+#define G 6.67e-11f
 #define MAIN_PROC 0
 
 typedef struct {
-    float *x, *y, *z, *vx, *vy, *vz;
+    float *x, *y, *z, *vx, *vy, *vz, *m;
 } BodySystem;
 
-void randomizeBodies(BodySystem* bodies, int n);
+void randomizeBodies(float* data, int n);
 void bodyForce(BodySystem p, float dt, int n, BodySystem localBuffer, int blocksize);
 
 int main(int argc, char** argv) {
@@ -30,10 +29,22 @@ int main(int argc, char** argv) {
     float dt = 0.01f;  // time step
     if (argc > 3) dt = atof(argv[3]);
 
-    int body_size = 6 * sizeof(float);
+    // MPI ========
+    int rank, size;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    int bytes = nBodies * body_size;
-    float* global_buffer = (float*)malloc(bytes);
+    nBodies = nBodies - (nBodies % size);
+    const int blockSize = nBodies / size;
+
+    double total_net_time = 0.0; // communication time
+    double total_cpu_time = 0.0; // computational time
+    double t0, t1;
+
+    int global_floats = 7 * nBodies;
+    float* global_buffer = (float*)malloc(global_floats * sizeof(float));
+
     BodySystem bodysystem_global;
     bodysystem_global.x = global_buffer + 0 * nBodies;
     bodysystem_global.y = global_buffer + 1 * nBodies;
@@ -41,84 +52,85 @@ int main(int argc, char** argv) {
     bodysystem_global.vx = global_buffer + 3 * nBodies;
     bodysystem_global.vy = global_buffer + 4 * nBodies;
     bodysystem_global.vz = global_buffer + 5 * nBodies;
+    bodysystem_global.m  = global_buffer + 6 * nBodies;
 
-    // MPI ========
-    int rank, size, i;
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    int local_floats = 7 * blockSize;
+    float* local_buffer = (float*)malloc(local_floats * sizeof(float));
 
-    int blockSize = nBodies / size;
-    int blockRemainder = nBodies % size;
+    BodySystem bodysystem_local;
+    bodysystem_local.x  = local_buffer + 0 * blockSize;
+    bodysystem_local.y  = local_buffer + 1 * blockSize;
+    bodysystem_local.z  = local_buffer + 2 * blockSize;
+    bodysystem_local.vx = local_buffer + 3 * blockSize;
+    bodysystem_local.vy = local_buffer + 4 * blockSize;
+    bodysystem_local.vz = local_buffer + 5 * blockSize;
+    bodysystem_local.m  = local_buffer + 6 * blockSize;
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
     Papi_Monitor* papi_monitor;
     if (rank == MAIN_PROC) {
         papi_monitor = malloc(sizeof(Papi_Monitor));
-#ifdef DEBUG
-        printf("Init papi monitors ...\n");
-#endif
 
         papi_helper_init(papi_monitor);
-
-#ifdef DEBUG
-        printf("... completed\n");
-#endif
     }
 #endif
 
     if (rank == MAIN_PROC) {
-        StartTimer();
+        t0 = MPI_Wtime();
+        randomizeBodies(global_buffer, global_floats);  // Init position, velocity, mass
+        t1 = MPI_Wtime();
+        total_cpu_time += (t1 - t0);
     }
 
-    int local_capacity = blockSize + blockRemainder;
-    float* local_buffer = (float*)malloc(local_capacity * body_size);
-    BodySystem bodysystem_local;
-    bodysystem_local.x = local_buffer + 0 * local_capacity;
-    bodysystem_local.y = local_buffer + 1 * local_capacity;
-    bodysystem_local.z = local_buffer + 2 * local_capacity;
-    bodysystem_local.vx = local_buffer + 3 * local_capacity;
-    bodysystem_local.vy = local_buffer + 4 * local_capacity;
-    bodysystem_local.vz = local_buffer + 5 * local_capacity;
 
-    if (rank == MAIN_PROC) {
-        printf("processors, bodies, time\n");
-        // printf(
-        //     "Running simulation of %d "
-        //     "bodies on %d iterations with "
-        //     "time step of "
-        //     "%.2f on %d nodes\n",
-        //     nBodies, nIters, dt, size);
-
-        randomizeBodies((BodySystem*)global_buffer, nBodies);  // Init position, velocity, mass
-    }
-
-    MPI_Scatter(global_buffer, body_size * blockSize, MPI_BYTE, local_buffer, body_size * blockSize, MPI_BYTE,
+    // initial distribution of data
+    t0 = MPI_Wtime();
+    MPI_Scatter(bodysystem_global.x, blockSize, MPI_FLOAT, bodysystem_local.x, blockSize, MPI_FLOAT,
+    MAIN_PROC, MPI_COMM_WORLD);
+    MPI_Scatter(bodysystem_global.y, blockSize, MPI_FLOAT, bodysystem_local.y, blockSize, MPI_FLOAT,
+    MAIN_PROC, MPI_COMM_WORLD);
+    MPI_Scatter(bodysystem_global.z, blockSize, MPI_FLOAT, bodysystem_local.z, blockSize, MPI_FLOAT,
+    MAIN_PROC, MPI_COMM_WORLD);
+    MPI_Scatter(bodysystem_global.vx, blockSize, MPI_FLOAT, bodysystem_local.vx, blockSize, MPI_FLOAT,
+    MAIN_PROC, MPI_COMM_WORLD);
+    MPI_Scatter(bodysystem_global.vy, blockSize, MPI_FLOAT, bodysystem_local.vy, blockSize, MPI_FLOAT,
+    MAIN_PROC, MPI_COMM_WORLD);
+    MPI_Scatter(bodysystem_global.vz, blockSize, MPI_FLOAT, bodysystem_local.vz, blockSize, MPI_FLOAT,
                 MAIN_PROC, MPI_COMM_WORLD);
+    // mass is sent in broadcast to avoid useless traffic later
+    MPI_Bcast(bodysystem_global.m, nBodies, MPI_FLOAT, MAIN_PROC, MPI_COMM_WORLD);
+    t1 = MPI_Wtime();
+    total_net_time += t1 - t0;
 
-    double totalTime = 0.0;
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
     if (rank == MAIN_PROC) {
-#ifdef DEBUG
-        printf("Starting papi monitors ...\n");
-#endif
         papi_helper_start(papi_monitor);
-#ifdef DEBUG
-        printf("... started\n");
-#endif
     }
 #endif
 
     MPI_Barrier(MPI_COMM_WORLD);
-
     int iter;
     for (iter = 1; iter <= nIters; iter++) {
-        MPI_Allgather(local_buffer, body_size * blockSize, MPI_BYTE, global_buffer, body_size * blockSize, MPI_BYTE,
-                      MPI_COMM_WORLD);
 
+        // synchronization
+        t0 = MPI_Wtime();
+        MPI_Allgather(bodysystem_local.x, blockSize, MPI_FLOAT, bodysystem_global.x, blockSize, MPI_FLOAT, MPI_COMM_WORLD);
+        MPI_Allgather(bodysystem_local.y, blockSize, MPI_FLOAT, bodysystem_global.y, blockSize, MPI_FLOAT, MPI_COMM_WORLD);
+        MPI_Allgather(bodysystem_local.z, blockSize, MPI_FLOAT, bodysystem_global.z, blockSize, MPI_FLOAT, MPI_COMM_WORLD);
+        MPI_Allgather(bodysystem_local.vx, blockSize, MPI_FLOAT, bodysystem_global.vx, blockSize, MPI_FLOAT, MPI_COMM_WORLD);
+        MPI_Allgather(bodysystem_local.vy, blockSize, MPI_FLOAT, bodysystem_global.vy, blockSize, MPI_FLOAT, MPI_COMM_WORLD);
+        MPI_Allgather(bodysystem_local.vz, blockSize, MPI_FLOAT, bodysystem_global.vz, blockSize, MPI_FLOAT, MPI_COMM_WORLD);
+        t1 = MPI_Wtime();
+        total_net_time += t1 - t0;
+
+        t0 = MPI_Wtime();
         bodyForce(bodysystem_global, dt, nBodies, bodysystem_local, blockSize);  // compute interbody forces
+        t1 = MPI_Wtime();
+        total_cpu_time += t1 - t0;
 
+
+        // update positions
         int i;
         float* __restrict__ lx = bodysystem_local.x;
         float* __restrict__ ly = bodysystem_local.y;
@@ -127,56 +139,38 @@ int main(int argc, char** argv) {
         const float* __restrict__ lvy = bodysystem_local.vy;
         const float* __restrict__ lvz = bodysystem_local.vz;
 
+        t0 = MPI_Wtime();
 #pragma omp parallel for schedule(static)
         for (i = 0; i < blockSize; i++) {
             lx[i] += lvx[i] * dt;
             ly[i] += lvy[i] * dt;
             lz[i] += lvz[i] * dt;
         }
+        t1 = MPI_Wtime();
+        total_cpu_time += t1 - t0;
 
     }  // end of iterations
 
     if (rank == MAIN_PROC) {
-        totalTime = GetTimer() / 1000;
-        double avgTime = totalTime / (double)(nIters - 1);
+        double totalTime = total_net_time + total_cpu_time;
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-#ifdef DEBUG
-        printf("Stopping papi monitors ...\n");
-#endif
         papi_helper_stop(papi_monitor);
-#ifdef DEBUG
-        printf("... stopped\n");
-#endif
-        papi_helper_print(papi_monitor);
+        // papi_helper_print(papi_monitor);
+        free(papi_monitor);
 #endif
 
-        // printf(
-        //     "Average rate for iterations 2 "
-        //     "through %d: %.3f steps per "
-        //     "second, %.3f "
-        //     "average per iteration.\n",
-        //     nIters, (float)nIters / totalTime, avgTime);
-        // printf(
-        //     "%d Bodies: average %0.3f "
-        //     "Billion Interactions / "
-        //     "second\n",
-        //     nBodies, 1e-9 * nBodies * nBodies / avgTime);
 
-        int minutes = ((int)totalTime) / 60.0;
-        int seconds = ((int)totalTime % 60);
-
-        // printf("Duration of simulation: %d m %d s\n", minutes, seconds);
-        printf("%d, %d, %d\n", size, nBodies, totalTime);
+        printf("%d, %d, %.4f, %.4f, %.4f\n", size, nBodies, total_cpu_time, total_net_time, totalTime);
     }
+
     free(global_buffer);
     free(local_buffer);
     MPI_Finalize();
 }
 
-void randomizeBodies(BodySystem* bodies, int n) {
+void randomizeBodies(float* data, int n) {
     int i;
-    float* data = (float*)bodies;
     for (i = 0; i < n; i++) {
         data[i] = 2.0f * (rand() / (float)RAND_MAX) - 1.0f;
     }
@@ -187,6 +181,7 @@ void bodyForce(BodySystem p, float dt, int n, BodySystem localBuffer, int blocks
     const float* __restrict__ px = p.x;
     const float* __restrict__ py = p.y;
     const float* __restrict__ pz = p.z;
+    const float* __restrict__ pm = p.m;
 
     float* __restrict__ lx = localBuffer.x;
     float* __restrict__ ly = localBuffer.y;
@@ -212,9 +207,11 @@ void bodyForce(BodySystem p, float dt, int n, BodySystem localBuffer, int blocks
             float invDist = 1.0f / sqrtf(distSqr);
             float invDist3 = invDist * invDist * invDist;
 
-            Fx += dx * invDist3;
-            Fy += dy * invDist3;
-            Fz += dz * invDist3;
+            float massProduct = pm[j] * G;
+
+            Fx += dx * invDist3 * massProduct;
+            Fy += dy * invDist3 * massProduct;
+            Fz += dz * invDist3 * massProduct;
         }
 
         lvx[i] += dt * Fx;
