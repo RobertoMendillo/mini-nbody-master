@@ -17,9 +17,9 @@ typedef struct {
     float x, y, z, vx, vy, vz, m;
 } Body;
 
-void randomizeBodies(float* data, int n);
-void bodyForce(Body* p, float dt, int n);
-void exportBodies(Body* p, int n, int iter);
+static void randomizeBodies(float* data, int n);
+static void bodyForce(Body* p, float dt, int n);
+static void exportBodies(Body* p, int n, int iter);
 
 /*
   Command line arguments:
@@ -38,10 +38,12 @@ int main(const int argc, const char** argv) {
     float dt = 0.01f;  // time step
     if (argc > 3) dt = atof(argv[3]);
 
-    int bytes = nBodies * sizeof(Body);
-    float* buf = (float*)malloc(bytes);
+    const unsigned long long bytes = nBodies * sizeof(Body);
+    float* buf = malloc(bytes);
     Body* p = (Body*)buf;
 
+
+// starts papi monitor for compatible architectures
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
     Papi_Monitor* papi_monitor = malloc(sizeof(Papi_Monitor));
 #ifdef DEBUG
@@ -101,17 +103,20 @@ int main(const int argc, const char** argv) {
 #ifdef DEBUG
     printf("... stopped\n");
     papi_helper_print(papi_monitor);
+
+    free(papi_monitor);
 #endif
 #endif
 
-    printf("%d, %d\n", nBodies, (int)totalTime);
+    printf("%d, %.4f\n", nBodies, totalTime);
 
 #ifdef DEBUG
-    printf("%d, %0.3f\n", nBodies, 1e-9 * nBodies * nBodies / avgTime);
     int minutes = ((int)totalTime) / 60.0;
     int seconds = ((int)totalTime % 60);
 
-    printf("Duration of simulation: %d m %d s\n", minutes, seconds);
+    printf("Duration of simulation for %d bodies: %d m %d s\n", nBodies, minutes, seconds);
+
+    free(hostname);
 #endif
     free(buf);
 }
@@ -125,7 +130,7 @@ void randomizeBodies(float* data, int n) {
     }
 }
 
-// computes interbody forces assuming mass of bodies equal to 1
+// computes interbody forces
 void bodyForce(Body* p, float dt, int n) {
     int i, j;
     for (i = 0; i < n; i++) {
