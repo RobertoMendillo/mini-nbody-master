@@ -1,0 +1,15 @@
+﻿network, processors, bodies, cpu_time, net_time, total_time
+tcpip/ethernet, 64, 29952, 0.9810, 1.4575, 2.4385
+tcpip/infiniband, 64, 29952, 1.1572, 1.6834, 2.8406
+native/infiniband, 64, 29952, 1.0699, 2.4213, 3.4912
+tcpip/ethernet, 64, 49984, 2.1824, 2.5803, 4.7627
+tcpip/infiniband, 64, 49984, 2.6854, 1.0219, 3.7073
+native/infiniband, 64, 49984, 2.4737, 2.8936, 5.3674
+tcpip/ethernet, 64, 99968, 9.4421, 5.9243, 15.3664
+tcpip/infiniband, 64, 99968, 10.6649, 1.6898, 12.3547
+native/infiniband, 64, 99968, 10.5262, 3.3307, 13.8569
+tcpip/ethernet, 64, 200000, 41.4788, 11.9389, 53.4177
+tcpip/infiniband, 64, 200000, 45.6023, 1.4948, 47.0971
+native/infiniband, 64, 200000, 45.6049, 3.5000, 49.1050
+tcpip/ethernet, 64, 400000, 178.5428, 20.9638, 199.5067
+tcpip/infiniband, [compute-0-2][[13671,1],47][btl_tcp_endpoint.c:803:mca_btl_tcp_endpoint_complete_connect] connect() to 10.2.2.251 failed: Connection timed out (110)
