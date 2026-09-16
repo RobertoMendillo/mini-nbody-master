@@ -3,7 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "timer.h"
+#ifdef EXPORT
+#include "utils.h"
+#endif
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
 #include "papi_helper.h"
@@ -17,14 +19,15 @@
                // gravitational constant
 #define MAIN_PROC 0
 
+#define BODY_SIZE sizeof(Body)
+
 typedef struct {
     float x, y, z, vx, vy, vz, m;
 } Body;
-#define BODY_SIZE sizeof(Body)
 
-void randomizeBodies(Body* data, int n);
-void bodyForce(Body* p, float dt, int n, Body* localBuffer, int blocksize);
-void exportBodies(Body* p, int n, int iter);
+
+static void randomizeBodies(Body* data, int n);
+static void bodyForce(Body* p, float dt, int n, Body* localBuffer, int blocksize);
 
 /*
   Command line arguments:
@@ -46,26 +49,31 @@ int main(int argc, char** argv) {
     float dt = 0.01f;  // time step
     if (argc > 3) dt = atof(argv[3]);
 
-    int bytes = nBodies * sizeof(Body);
-    Body* global_buffer = (Body*)malloc(bytes);
-
     // MPI ========
     int rank, size, i;
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    int blockSize = nBodies / size;
-    int blockRemainder = nBodies % size;
+    // let nbodies be a round number so that the division is an integer
+    nBodies = nBodies - (nBodies % size);
+    const int blockSize = nBodies / size;
 
-    if (rank == MAIN_PROC) {
-        StartTimer();
-    }
+    int bytes = nBodies * sizeof(Body);
+    Body *global_buffer = malloc(bytes);
+
+    double total_net_time = 0.0; // communication time
+    double total_cpu_time = 0.0; // computational time
+    double t0, t1;
 
 #ifdef DEBUG
     printf("#%d Memory allocation for local buffer ... ", rank);
 #endif
-    Body* local_buffer = (Body*)malloc((blockSize + blockRemainder) * sizeof(Body));
+
+
+    Body* local_buffer = (Body*)malloc(blockSize * sizeof(Body));
+
+
 #ifdef DEBUG
     printf(" ... done.\n");
 #endif
@@ -88,17 +96,18 @@ int main(int argc, char** argv) {
 #endif
 
     if (rank == MAIN_PROC) {
-        printf(
-            "Running simulation of %d "
-            "bodies on %d iterations with "
-            "time step of "
-            "%.2f on %d nodes\n",
-            nBodies, nIters, dt, size);
 
 #ifdef DEBUG
         printf("Randomizing bodies ...");
 #endif
-        randomizeBodies(global_buffer, nBodies);  // Init position, velocity, mass
+
+
+        t0 = MPI_Wtime();
+        randomizeBodies(global_buffer, nBodies); // Init position, velocity, mass
+        t1 = MPI_Wtime();
+        total_cpu_time += (t1 - t0);
+
+
 #ifdef DEBUG
         printf("... done.\n");
 #endif
@@ -108,13 +117,18 @@ int main(int argc, char** argv) {
 #ifdef DEBUG
     printf("distributing work...");
 #endif
+
+
+    t0 = MPI_Wtime();
     MPI_Scatter(global_buffer, BODY_SIZE * blockSize, MPI_BYTE, local_buffer, BODY_SIZE * blockSize, MPI_BYTE,
                 MAIN_PROC, MPI_COMM_WORLD);
+    t1 = MPI_Wtime();
+    total_net_time += (t1 - t0);
+
+
 #ifdef DEBUG
     printf("... done.\n");
 #endif
-
-    double totalTime = 0.0;  // simulation total execution time
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
     if (rank == MAIN_PROC) {
@@ -131,43 +145,38 @@ int main(int argc, char** argv) {
     MPI_Barrier(MPI_COMM_WORLD);
     int iter;
     for (iter = 1; iter <= nIters; iter++) {
+        t0 = MPI_Wtime();
         // raccogliamo lo stato attuale dei corpi
         MPI_Allgather(local_buffer, BODY_SIZE * blockSize, MPI_BYTE, global_buffer, BODY_SIZE * blockSize, MPI_BYTE,
                       MPI_COMM_WORLD);
+        t1 = MPI_Wtime();
+        total_net_time += t1 - t0;
 
 #ifdef EXPORT
         if (rank == MAIN_PROC) exportBodies(global_buffer, nBodies, iter);
 #endif
 
+        t0 = MPI_Wtime();
         bodyForce(global_buffer, dt, nBodies, local_buffer, blockSize);  // compute interbody forces
+        t1 = MPI_Wtime();
+        total_cpu_time += t1 - t0;
 
         int i;
+        t0 = MPI_Wtime();
 #pragma omp parallel for schedule(static)
         for (i = 0; i < blockSize; i++) {  // integrate position
             local_buffer[i].x += local_buffer[i].vx * dt;
             local_buffer[i].y += local_buffer[i].vy * dt;
             local_buffer[i].z += local_buffer[i].vz * dt;
         }
-
-        double tElapsed;
-        if (rank == MAIN_PROC) {
-            tElapsed = GetTimer() / 1000.0;
-            if (iter > 1) {  // First iter is warm up
-                totalTime += tElapsed;
-            }
-
-#ifdef DEBUG
-            printf(
-                " ... %.3f "
-                "seconds\n",
-                tElapsed);
-#endif
-        }
+        t1 = MPI_Wtime();
+        total_cpu_time += t1 - t0;
 
     }  // end of iterations
 
     if (rank == MAIN_PROC) {
-        double avgTime = totalTime / (double)(nIters - 1);
+        double totalTime = total_net_time + total_cpu_time; // elapsed time in seconds
+        double avgTime = totalTime / (double) (nIters - 1);
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
 #ifdef DEBUG
@@ -177,25 +186,13 @@ int main(int argc, char** argv) {
 #ifdef DEBUG
         printf("... stopped\n");
 #endif
-        papi_helper_print(papi_monitor);
+        // papi_helper_print(papi_monitor);
+        free(papi_monitor);
 #endif
 
-        // printf(
-        //     "Average rate for iterations 2 "
-        //     "through %d: %.3f steps per "
-        //     "second, %.3f "
-        //     "average per iteration.\n",
-        //     nIters, (float)nIters / totalTime, avgTime);
-        // printf(
-        //     "%d Bodies: average %0.3f "
-        //     "Billion Interactions / "
-        //     "second\n",
-        //     nBodies, 1e-9 * nBodies * nBodies / avgTime);
 
-        int minutes = ((int)totalTime) / 60.0;
-        int seconds = ((int)totalTime % 60);
+        printf("%d, %d, %.4f, %.4f, %.4f\n", size, nBodies, total_cpu_time, total_net_time, totalTime);
 
-        printf("Duration of simulation: %d m %d s\n", minutes, seconds);
     }
     free(global_buffer);
     free(local_buffer);
@@ -289,35 +286,4 @@ void bodyForce(Body* p, float dt, int n, Body* localBuffer, int blocksize) {
         localBuffer[i].vy += dt * Fy;  // velocity on y axis
         localBuffer[i].vz += dt * Fz;  // velocity on z axis
     }
-}
-
-void exportBodies(Body* p, int n, int iter) {
-    // Apre il file in modalità "append"
-    // (scrive in coda al file
-    // esistente)
-    FILE* f = fopen("simulation_data.csv", "a");
-    if (f == NULL) {
-        printf(
-            "Errore nell'apertura del "
-            "file!\n");
-        return;
-    }
-
-    // Se è la primissima iterazione,
-    // scrive l'intestazione delle
-    // colonne (header)
-    if (iter == 1) {
-        fprintf(f,
-                "iteration,body_id,x,y,"
-                "z\n");
-    }
-
-    // Scrive i dati di ogni corpo
-    int i;
-    for (i = 0; i < n; i++) {
-        fprintf(f, "%d,%d,%.5f,%.5f,%.5f\n", iter, i, p[i].x, p[i].y, p[i].z);
-    }
-
-    fclose(f);  // Chiude il file per
-                // salvare i dati sul disco
 }
