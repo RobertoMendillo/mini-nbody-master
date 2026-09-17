@@ -12,4 +12,4 @@ tcpip/ethernet, 64, 200000, 41.4788, 11.9389, 53.4177
 tcpip/infiniband, 64, 200000, 45.6023, 1.4948, 47.0971
 native/infiniband, 64, 200000, 45.6049, 3.5000, 49.1050
 tcpip/ethernet, 64, 400000, 178.5428, 20.9638, 199.5067
-tcpip/infiniband, [compute-0-2][[13671,1],47][btl_tcp_endpoint.c:803:mca_btl_tcp_endpoint_complete_connect] connect() to 10.2.2.251 failed: Connection timed out (110)
+tcpip/infiniband, 64, 400000, 183.4067, 3.6787, 187.0854
