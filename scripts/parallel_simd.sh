@@ -27,6 +27,9 @@ for size in "${BODIES[@]}"; do
     # Native InfiniBand
     printf "native/infiniband, " >> $OUTPUT_FILE
     mpirun --mca btl self,openib -machinefile $MACHINEFILE nbody_mpi_simd.out "$size" >> $OUTPUT_FILE 2>&1
+
+    echo "Attesa di 10 secondi per stabilizzare la rete..."
+    sleep 10
 done
 
 echo "Benchmark completato! Risultati salvati in $OUTPUT_FILE"
