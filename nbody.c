@@ -42,7 +42,6 @@ int main(const int argc, const char** argv) {
     float* buf = malloc(bytes);
     Body* p = (Body*)buf;
 
-
 // starts papi monitor for compatible architectures
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
     Papi_Monitor* papi_monitor = malloc(sizeof(Papi_Monitor));
@@ -108,7 +107,7 @@ int main(const int argc, const char** argv) {
 #endif
 #endif
 
-    printf("%d, %.4f\n", nBodies, totalTime);
+    printf("%d,%.4f\n", nBodies, totalTime);
 
 #ifdef DEBUG
     int minutes = ((int)totalTime) / 60.0;
