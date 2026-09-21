@@ -19,7 +19,6 @@ typedef struct {
 
 static void randomizeBodies(float* data, int n);
 static void bodyForce(Body* p, float dt, int n);
-static void exportBodies(Body* p, int n, int iter);
 
 /*
   Command line arguments:
@@ -27,7 +26,7 @@ static void exportBodies(Body* p, int n, int iter);
     [2] --> simulation iterations: default 10
     [3] --> time step: default 0.01
 */
-int main(const int argc, const char** argv) {
+int main(int argc, char** argv) {
     // number of bodies in the simulation
     int nBodies = 30000;
     // reading number of bodies as command line argument
@@ -38,46 +37,30 @@ int main(const int argc, const char** argv) {
     float dt = 0.01f;  // time step
     if (argc > 3) dt = atof(argv[3]);
 
+    MPI_Init(&argc, &argv);
+
     const unsigned long long bytes = nBodies * sizeof(Body);
     float* buf = malloc(bytes);
     Body* p = (Body*)buf;
 
+    double t0, t1, total_time = 0.0;
+
 // starts papi monitor for compatible architectures
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
     Papi_Monitor* papi_monitor = malloc(sizeof(Papi_Monitor));
-#ifdef DEBUG
-    printf("Init papi monitors ...\n");
-#endif
     papi_helper_init(papi_monitor);
-#ifdef DEBUG
-    printf("... completed\n");
-#endif
 #endif
 
-    StartTimer();
-
-#ifdef DEBUG
-    const int HOSTNAME_LENTGH = 30;
-    char* hostname = (char*)malloc(HOSTNAME_LENTGH * sizeof(char));
-    gethostname(hostname, HOSTNAME_LENTGH);
-    printf("Running on: %s", hostname);
-    printf("Running simulation of %d bodies on %d iterations with time step of %.2f\n", nBodies, nIters, dt);
-#endif
-
+    t0 = MPI_Wtime();
     randomizeBodies(buf, 7 * nBodies);  // Init pos / vel data
-
-    double totalTime = 0.0;  // simulation total execution time
+    t1 = MPI_Wtime();
+    total_time += t1 - t0;
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-#ifdef DEBUG
-    printf("Starting papi monitors ...\n");
-#endif
     papi_helper_start(papi_monitor);
-#ifdef DEBUG
-    printf("... started\n");
-#endif
 #endif
     int iter;
+    t0 = MPI_Wtime();
     for (iter = 1; iter <= nIters; iter++) {
         bodyForce(p, dt, nBodies);  // compute interbody forces
 
@@ -87,37 +70,18 @@ int main(const int argc, const char** argv) {
             p[i].y += p[i].vy * dt;
             p[i].z += p[i].vz * dt;
         }
-
-#ifdef EXPORT
-        exportBodies(p, nBodies, iter);
-#endif
     }
-    totalTime = GetTimer() / 1000;
+    t1 = MPI_Wtime();
+    total_time += t1 - t0;
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-#ifdef DEBUG
-    printf("Stopping papi monitors ...\n");
-#endif
     papi_helper_stop(papi_monitor);
-#ifdef DEBUG
-    printf("... stopped\n");
-    papi_helper_print(papi_monitor);
-
-    free(papi_monitor);
-#endif
 #endif
 
-    printf("%d,%.4f\n", nBodies, totalTime);
+    printf("%d,%.4f\n", nBodies, total_time);
 
-#ifdef DEBUG
-    int minutes = ((int)totalTime) / 60.0;
-    int seconds = ((int)totalTime % 60);
-
-    printf("Duration of simulation for %d bodies: %d m %d s\n", nBodies, minutes, seconds);
-
-    free(hostname);
-#endif
     free(buf);
+    MPI_Finalize();
 }
 
 // sets up the bodies with random position, velocity and mass
@@ -164,26 +128,4 @@ void bodyForce(Body* p, float dt, int n) {
         p[i].vy += dt * Fy;  // velocity on y axis
         p[i].vz += dt * Fz;  // velocity on z axis
     }
-}
-
-void exportBodies(Body* p, int n, int iter) {
-    // Apre il file in modalità "append" (scrive in coda al file esistente)
-    FILE* f = fopen("simulation_data.csv", "a");
-    if (f == NULL) {
-        printf("Errore nell'apertura del file!\n");
-        return;
-    }
-
-    // Se è la primissima iterazione, scrive l'intestazione delle colonne (header)
-    if (iter == 1) {
-        fprintf(f, "iteration,body_id,x,y,z\n");
-    }
-
-    // Scrive i dati di ogni corpo
-    int i;
-    for (i = 0; i < n; i++) {
-        fprintf(f, "%d,%d,%.5f,%.5f,%.5f\n", iter, i, p[i].x, p[i].y, p[i].z);
-    }
-
-    fclose(f);  // Chiude il file per salvare i dati sul disco
 }
