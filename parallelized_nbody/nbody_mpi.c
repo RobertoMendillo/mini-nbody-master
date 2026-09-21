@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
         free(papi_monitor);
 #endif
 
-        printf("%d, %d, %.4f, %.4f, %.4f\n", size, nBodies, total_cpu_time, total_net_time, totalTime);
+        printf("%d,%d,%.4f,%.4f,%.4f\n", size, nBodies, total_cpu_time, total_net_time, totalTime);
     }
     free(global_buffer);
     free(local_buffer);

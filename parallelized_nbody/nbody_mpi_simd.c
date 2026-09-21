@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
 #endif
 
 
-        printf("%d, %d, %.4f, %.4f, %.4f\n", size, nBodies, total_cpu_time, total_net_time, totalTime);
+        printf("%d,%d,%.4f,%.4f,%.4f\n", size, nBodies, total_cpu_time, total_net_time, totalTime);
 
     }
     free(global_buffer);
