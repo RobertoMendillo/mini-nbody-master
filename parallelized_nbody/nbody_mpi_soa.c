@@ -67,12 +67,12 @@ int main(int argc, char** argv) {
     bodysystem_local.m = local_buffer + 6 * blockSize;
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-    Papi_Monitor* papi_monitor;
-    if (rank == MAIN_PROC) {
-        papi_monitor = malloc(sizeof(Papi_Monitor));
-
-        papi_helper_init(papi_monitor);
+    Papi_Monitor* papi_monitor = malloc(sizeof(Papi_Monitor));
+    if (papi_monitor == NULL) {
+        fprintf(stderr, "[Rank %d] Errore allocazione memoria papi_monitor\n", rank);
+        MPI_Abort(MPI_COMM_WORLD, -1);
     }
+    papi_helper_init(papi_monitor);
 #endif
 
     if (rank == MAIN_PROC) {
@@ -102,9 +102,7 @@ int main(int argc, char** argv) {
     total_net_time += t1 - t0;
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-    if (rank == MAIN_PROC) {
-        papi_helper_start(papi_monitor);
-    }
+    papi_helper_start(papi_monitor);
 #endif
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -153,22 +151,24 @@ int main(int argc, char** argv) {
 
     }  // end of iterations
 
-    if (rank == MAIN_PROC) {
-        double totalTime = total_net_time + total_cpu_time;
-
-        long long cacheMissL1 = 0LL;
-        long long cacheMissL2 = 0LL;
+    long long total_L1 = 0LL;
+    long long total_L2 = 0LL;
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-        papi_helper_stop(papi_monitor);
-        cacheMissL1 = papi_get_values(papi_monitor, L1_CACHE_MISS_INDEX);
-        cacheMissL2 = papi_get_values(papi_monitor, L2_CACHE_MISS_INDEX);
+    papi_helper_stop(papi_monitor);
+    long long local_L1 = papi_get_values(papi_monitor, L1_CACHE_MISS_INDEX);
+    long long local_L2 = papi_get_values(papi_monitor, L2_CACHE_MISS_INDEX);
+    papi_helper_destroy(papi_monitor);
+    free(papi_monitor);
 
-        papi_helper_destroy(papi_monitor);
-        free(papi_monitor);
+    MPI_Reduce(&local_L1, &total_L1, 1, MPI_LONG_LONG, MPI_SUM, MAIN_PROC, MPI_COMM_WORLD);
+    MPI_Reduce(&local_L2, &total_L2, 1, MPI_LONG_LONG, MPI_SUM, MAIN_PROC, MPI_COMM_WORLD);
+
 #endif
+    if (rank == MAIN_PROC) {
+        double totalTime = total_net_time + total_cpu_time;  // elapsed time in seconds
 
-        printf("%d,%d,%.4f,%.4f,%.4f,%lld,%lld\n", size, nBodies, total_cpu_time, total_net_time, totalTime,
-               cacheMissL1, cacheMissL2);
+        printf("%d,%d,%.4f,%.4f,%.4f,%lld,%lld\n", size, nBodies, total_cpu_time, total_net_time, totalTime, total_L1,
+               total_L2);
     }
 
     free(global_buffer);
