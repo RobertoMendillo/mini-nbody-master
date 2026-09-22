@@ -21,5 +21,7 @@ int papi_helper_init(Papi_Monitor* monitor);
 int papi_helper_start(Papi_Monitor* monitor);
 int papi_helper_stop(Papi_Monitor* monitor);
 void papi_helper_print(Papi_Monitor* monitor);
+int papi_helper_destroy(Papi_Monitor* monitor);
+long long papi_get_values(Papi_Monitor* monitor, int code);
 
 #endif  // PAPI_HELPER_H

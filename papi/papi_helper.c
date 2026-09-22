@@ -66,9 +66,35 @@ int papi_helper_stop(Papi_Monitor* monitor) {
     return 0;
 }
 
+// Da aggiungere a papi_helper.h e papi_helper.c
+int papi_helper_destroy(Papi_Monitor* monitor) {
+    if (monitor == NULL || monitor->event_set == PAPI_NULL) return 0;
+
+    int retval = PAPI_cleanup_eventset(monitor->event_set);
+    if (retval != PAPI_OK) {
+        fprintf(stderr, "Errore PAPI_cleanup_eventset: %s\n", PAPI_strerror(retval));
+        return -1;
+    }
+
+    retval = PAPI_destroy_eventset(&(monitor->event_set));
+    if (retval != PAPI_OK) {
+        fprintf(stderr, "Errore PAPI_destroy_eventset: %s\n", PAPI_strerror(retval));
+        return -1;
+    }
+
+    return 0;
+}
+
 void papi_helper_print(Papi_Monitor* monitor) {
     printf("\n=== METRICHE PAPI ===\n");
     printf("L1 Data Cache Misses (billions): %.4f\n", monitor->values[L1_CACHE_MISS_INDEX] / 1e9);
     printf("L2 Data Cache Misses (billions): %.4f\n", monitor->values[L2_CACHE_MISS_INDEX] / 1e9);
     printf("======================\n");
+}
+
+long long papi_get_values(Papi_Monitor* monitor, int code) {
+    if (monitor == NULL || code < 0 || code >= NUM_EVENTS) {
+        return -1;  // o gestione d'errore adeguata
+    }
+    return monitor->values[code];
 }
