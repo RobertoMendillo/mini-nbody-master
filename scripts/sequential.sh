@@ -3,7 +3,7 @@ OUTPUT_FILE="results.data"
 MACHINEFILE="machinefile.txt"
 
 # Inizializza il file CSV
-printf "bodies,total_time\n" > $OUTPUT_FILE
+printf "bodies,total_time,cache_miss_L1,cache_miss_L2\n" > $OUTPUT_FILE
 
 # Compilazione
 echo "Compilazione in corso..."

@@ -3,7 +3,7 @@ OUTPUT_FILE="results_parallel.data"
 MACHINEFILE="machinefile_p.txt"
 
 # Inizializza il file CSV
-printf "network, processors, bodies, cpu_time, net_time, total_time\n" > $OUTPUT_FILE
+printf "network,processors,bodies,cpu_time,net_time,total_time,cache_miss_L1,cache_miss_L2\n" > $OUTPUT_FILE
 
 # Compilazione
 echo "Compilazione in corso..."
