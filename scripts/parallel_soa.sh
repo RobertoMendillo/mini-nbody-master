@@ -11,7 +11,7 @@ mpicc -O3 -mavx -ffast-math parallelized_nbody/nbody_mpi_soa.c ./papi/papi_helpe
 echo "Compilazione completata. Inizio benchmark."
 
 # Array con tutte le dimensioni della simulazione
-BODIES=(30000 50000 100000 200000 400000 600000 800000 1000000)
+BODIES=(30000 50000 100000 200000 400000 600000)
 
 for size in "${BODIES[@]}"; do
     echo "Esecuzione simulazione per $size corpi..."
