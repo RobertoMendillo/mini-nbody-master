@@ -74,11 +74,18 @@ int main(int argc, char** argv) {
     t1 = MPI_Wtime();
     total_time += t1 - t0;
 
+    long long cacheMissL1 = 0LL;
+    long long cacheMissL2 = 0LL;
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
     papi_helper_stop(papi_monitor);
+    cacheMissL1 = papi_get_values(papi_monitor, L1_CACHE_MISS_INDEX);
+    cacheMissL2 = papi_get_values(papi_monitor, L2_CACHE_MISS_INDEX);
+
+    papi_helper_destroy(papi_monitor, papi_helper_destroy);
+    free(papi_monitor);
 #endif
 
-    printf("%d,%.4f\n", nBodies, total_time);
+    printf("%d,%.4f,%lld,%lld\n", nBodies, total_time, cacheMissL1, cacheMissL2);
 
     free(buf);
     MPI_Finalize();
