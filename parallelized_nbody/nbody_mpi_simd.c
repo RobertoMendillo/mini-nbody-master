@@ -25,7 +25,6 @@ typedef struct {
     float x, y, z, vx, vy, vz, m;
 } Body;
 
-
 static void randomizeBodies(Body* data, int n);
 static void bodyForce(Body* p, float dt, int n, Body* localBuffer, int blocksize);
 
@@ -60,19 +59,17 @@ int main(int argc, char** argv) {
     const int blockSize = nBodies / size;
 
     int bytes = nBodies * sizeof(Body);
-    Body *global_buffer = malloc(bytes);
+    Body* global_buffer = malloc(bytes);
 
-    double total_net_time = 0.0; // communication time
-    double total_cpu_time = 0.0; // computational time
+    double total_net_time = 0.0;  // communication time
+    double total_cpu_time = 0.0;  // computational time
     double t0, t1;
 
 #ifdef DEBUG
     printf("#%d Memory allocation for local buffer ... ", rank);
 #endif
 
-
     Body* local_buffer = (Body*)malloc(blockSize * sizeof(Body));
-
 
 #ifdef DEBUG
     printf(" ... done.\n");
@@ -96,17 +93,14 @@ int main(int argc, char** argv) {
 #endif
 
     if (rank == MAIN_PROC) {
-
 #ifdef DEBUG
         printf("Randomizing bodies ...");
 #endif
 
-
         t0 = MPI_Wtime();
-        randomizeBodies(global_buffer, nBodies); // Init position, velocity, mass
+        randomizeBodies(global_buffer, nBodies);  // Init position, velocity, mass
         t1 = MPI_Wtime();
         total_cpu_time += (t1 - t0);
-
 
 #ifdef DEBUG
         printf("... done.\n");
@@ -118,13 +112,11 @@ int main(int argc, char** argv) {
     printf("distributing work...");
 #endif
 
-
     t0 = MPI_Wtime();
     MPI_Scatter(global_buffer, BODY_SIZE * blockSize, MPI_BYTE, local_buffer, BODY_SIZE * blockSize, MPI_BYTE,
                 MAIN_PROC, MPI_COMM_WORLD);
     t1 = MPI_Wtime();
     total_net_time += (t1 - t0);
-
 
 #ifdef DEBUG
     printf("... done.\n");
@@ -175,24 +167,21 @@ int main(int argc, char** argv) {
     }  // end of iterations
 
     if (rank == MAIN_PROC) {
-        double totalTime = total_net_time + total_cpu_time; // elapsed time in seconds
-        double avgTime = totalTime / (double) (nIters - 1);
+        double totalTime = total_net_time + total_cpu_time;  // elapsed time in seconds
 
+        long long cacheMissL1 = 0LL;
+        long long cacheMissL2 = 0LL;
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
-#ifdef DEBUG
-        printf("Stopping papi monitors ...\n");
-#endif
         papi_helper_stop(papi_monitor);
-#ifdef DEBUG
-        printf("... stopped\n");
-#endif
-        // papi_helper_print(papi_monitor);
+        cacheMissL1 = papi_get_values(papi_monitor, L1_CACHE_MISS_INDEX);
+        cacheMissL2 = papi_get_values(papi_monitor, L2_CACHE_MISS_INDEX);
+
+        papi_helper_destroy(papi_monitor);
         free(papi_monitor);
 #endif
 
-
-        printf("%d,%d,%.4f,%.4f,%.4f\n", size, nBodies, total_cpu_time, total_net_time, totalTime);
-
+        printf("%d,%d,%.4f,%.4f,%.4f,%lld,%lld\n", size, nBodies, total_cpu_time, total_net_time, totalTime,
+               cacheMissL1, cacheMissL2);
     }
     free(global_buffer);
     free(local_buffer);
