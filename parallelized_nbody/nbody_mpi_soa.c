@@ -184,7 +184,6 @@ void randomizeBodies(float* data, int n) {
 }
 
 void bodyForce(BodySystem p, float dt, int n, BodySystem localBuffer, int blocksize) {
-    // Use __restrict__ instead of restrict
     const float* __restrict__ px = p.x;
     const float* __restrict__ py = p.y;
     const float* __restrict__ pz = p.z;
