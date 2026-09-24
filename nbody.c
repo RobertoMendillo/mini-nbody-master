@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
     cacheMissL1 = papi_get_values(papi_monitor, L1_CACHE_MISS_INDEX);
     cacheMissL2 = papi_get_values(papi_monitor, L2_CACHE_MISS_INDEX);
 
-    papi_helper_destroy(papi_monitor, papi_helper_destroy);
+    papi_helper_destroy(papi_monitor);
     free(papi_monitor);
 #endif
 
