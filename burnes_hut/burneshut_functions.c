@@ -70,6 +70,7 @@ void resetOctreePool() {
             node->children[j] = NULL;
         }
     }
+    pool->next_free = 0;
 }
 
 /*
@@ -170,9 +171,7 @@ void insertBody(OctreeNode* root, Body* body) {
             if (currentNode == NULL) {continue;}
             currentBbox = currentNode->bbox;
 
-            int bodyShouldBeInsideNode = body->x >= currentBbox.min_x && body->x < currentBbox.max_x &&
-                    body->y >= currentBbox.min_y && body->y < currentBbox.max_y &&
-                    body->z >= currentBbox.min_z && body->z < currentBbox.max_z;
+            int bodyShouldBeInsideNode = !checkBodyOutsideOfOctreeNode(currentNode, body);
 
             if (bodyShouldBeInsideNode ) {
                 isLeaf = checkIfNodeIsLeaf(currentNode);
@@ -309,12 +308,12 @@ int checkBodyOutsideOfOctreeNode(OctreeNode* node, Body* body) {
         return 1;
     }
 
-    if (body->x < node->bbox.min_x || body->x > node->bbox.max_x ||
-    body->y < node->bbox.min_y || body->y > node->bbox.max_y ||
-    body->z < node->bbox.min_z || body->z > node->bbox.max_z
-    ) {
+    BoundingBox bbox = node->bbox;
+    if (body->x < bbox.min_x || body->x > bbox.max_x ||
+        body->y < bbox.min_y || body->y > bbox.max_y ||
+        body->z < bbox.min_z || body->z > bbox.max_z) {
         return 1;
-    }
+        }
 
     return 0;
 }
@@ -323,16 +322,35 @@ OctreeNode* buildOctree(Body* bodies, int n) {
     resetOctreePool();
     OctreeNode* root = newOctreeNode();
 
+    // 1. Trova le coordinate minime e massime assolute tra tutti i corpi
+    float min_val = 1e9f;
+    float max_val = -1e9f;
+
+    int i;
+    for (i = 0; i < n; i++) {
+        if (bodies[i].x < min_val) min_val = bodies[i].x;
+        if (bodies[i].y < min_val) min_val = bodies[i].y;
+        if (bodies[i].z < min_val) min_val = bodies[i].z;
+
+        if (bodies[i].x > max_val) max_val = bodies[i].x;
+        if (bodies[i].y > max_val) max_val = bodies[i].y;
+        if (bodies[i].z > max_val) max_val = bodies[i].z;
+    }
+
+    // 2. Determina la dimensione massima per assicurare che il Bounding Box sia un cubo perfetto
+    // (necessario affinché il calcolo s/dist di Barnes-Hut sia spazialmente coerente)
+    float max_abs = (max_val > -min_val) ? max_val : -min_val;
+    float dimension = max_abs + 1.0f; // + 1.0f di margine per sicurezza
+
     BoundingBox* bbox = &root->bbox;
-    float dimension = 1000;
     bbox->min_x = -dimension;
-    bbox->min_y = -dimension ;
-    bbox->min_z =-dimension ;
-    bbox->max_x =dimension;
+    bbox->min_y = -dimension;
+    bbox->min_z = -dimension;
+    bbox->max_x = dimension;
     bbox->max_y = dimension;
     bbox->max_z = dimension;
 
-    int i;
+    // 3. Inserimento
     for (i=0; i<n; i++) {
         insertBody(root, bodies+i);
     }
