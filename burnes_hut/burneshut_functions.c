@@ -488,7 +488,7 @@ void updatePhysicsWithIndex(Body* bodies, int start_idx, int end_idx, OctreeNode
 
     int i;
 #pragma omp parallel for private(i)
-    for (int i = start_idx; i < end_idx; i++) {
+    for (i = start_idx; i < end_idx; i++) {
         float fx = 0.0f, fy = 0.0f, fz = 0.0f;
 
         // 1. Calcola la forza netta agente sulla particella i-esima
