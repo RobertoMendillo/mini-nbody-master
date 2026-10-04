@@ -41,7 +41,8 @@ int main(int argc, char** argv) {
     int remainder = numBodies % size;
     int offset = 0;
 
-    for (int i = 0; i < size; i++) {
+    int i;
+    for (i = 0; i < size; i++) {
         // I primi 'remainder' processi prendono un corpo in più
         int count = numBodies / size + (i < remainder ? 1 : 0);
 
@@ -77,7 +78,8 @@ int main(int argc, char** argv) {
     // =========================================================================
     // 3. CICLO DI SIMULAZIONE
     // =========================================================================
-    for (int step = 0; step < nIters; step++) {
+    int step;
+    for (step = 0; step < nIters; step++) {
         // A. Costruisce l'albero spaziale per TUTTI i corpi (avviene in parallelo su ogni nodo)
         OctreeNode* root = buildOctree(bodies, numBodies);
 
