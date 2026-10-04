@@ -7,7 +7,7 @@ printf "network,processors,bodies,cpu_time,net_time,total_time,cache_miss_L1,cac
 
 # Compilazione
 echo "Compilazione in corso..."
-mpicc -O3 burnes_hut/parallel/nbody_burneshut_mpi.c ./papi/papi_helper.c -lm -I./papi/ -I. -fopenmp /usr/local/lib/libpapi.a -o burnes_hut/parallel/nbody_mpi.out
+mpicc -O3 burnes_hut/parallel/nbody_burneshut_mpi.c burnes_hut/burneshut_functions.c ./papi/papi_helper.c -lm -I./papi/ -I. -fopenmp /usr/local/lib/libpapi.a -o burnes_hut/parallel/nbody_mpi.out
 echo "Compilazione completata. Inizio benchmark."
 
 # Array con tutte le dimensioni della simulazione
