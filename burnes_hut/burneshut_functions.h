@@ -4,8 +4,7 @@
 
 #ifndef MINI_NBODY_MASTER_BURNESHUT_FUNCTIONS_H
 #define MINI_NBODY_MASTER_BURNESHUT_FUNCTIONS_H
-#endif //MINI_NBODY_MASTER_BURNESHUT_FUNCTIONS_H
-
+#endif  // MINI_NBODY_MASTER_BURNESHUT_FUNCTIONS_H
 
 #include "data_structures.h"
 
@@ -30,4 +29,5 @@ int checkBodyOutsideOfOctreeNode(OctreeNode* node, Body* body);
 // funzioni di calcolo
 void computeMassDistribution(OctreeNode* node);
 void computeCentersOfMass();
+void updatePhysicsWithIndex(Body* bodies, int start_idx, int end_idx, OctreeNode* root, float theta, float dt);
 void updatePhysics(Body* bodies, int numBodies, OctreeNode* root, float theta, float dt);

@@ -7,13 +7,13 @@
 
 #ifndef MINI_NBODY_MASTER_BURNESHUT_FUNCTIONS_C
 #define MINI_NBODY_MASTER_BURNESHUT_FUNCTIONS_C
-#endif //MINI_NBODY_MASTER_BURNESHUT_FUNCTIONS_C
+#endif  // MINI_NBODY_MASTER_BURNESHUT_FUNCTIONS_C
 #include "burneshut_functions.h"
 
 #include <math.h>
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <omp.h>
 
 #include "data_structures.h"
 
@@ -41,8 +41,7 @@ OctreePool* pool;
  * Integrazione del moto
  *
  *
-*/
-
+ */
 
 // Inizializza il pool di nodi dell'Octree con 8N nodi
 // dove N è il numero di corpi
@@ -50,7 +49,7 @@ void initOctreePool(int numBodies) {
     pool = (OctreePool*)malloc(sizeof(OctreePool));
     pool->nodes = malloc(OCTREE_CHILDREN_SIZE * numBodies * sizeof(OctreeNode));
     pool->max_nodes = 8 * numBodies;
-    pool->next_free=0;
+    pool->next_free = 0;
 }
 
 /*
@@ -63,12 +62,12 @@ void initOctreePool(int numBodies) {
  */
 void resetOctreePool() {
     int i;
-    for (i=0; i<pool->max_nodes; i++) {
-        OctreeNode* node = pool->nodes+i;
+    for (i = 0; i < pool->max_nodes; i++) {
+        OctreeNode* node = pool->nodes + i;
         node->id = 0;
         node->body = NULL;
         int j;
-        for (j=0; j<OCTREE_CHILDREN_SIZE; j++) {
+        for (j = 0; j < OCTREE_CHILDREN_SIZE; j++) {
             node->children[j] = NULL;
         }
     }
@@ -81,7 +80,7 @@ void resetOctreePool() {
  *
  */
 OctreeNode* newOctreeNode() {
-    if (pool->next_free == pool->max_nodes-1) {
+    if (pool->next_free == pool->max_nodes - 1) {
         pool->max_nodes *= 2;
         pool->nodes = realloc(pool->nodes, pool->max_nodes * sizeof(OctreeNode));
         if (pool->nodes == NULL) {
@@ -97,13 +96,12 @@ OctreeNode* newOctreeNode() {
     newNode->cz = 0.0;
     newNode->body = NULL;
     int i;
-    for (i=0; i<OCTREE_CHILDREN_SIZE; i++) {
+    for (i = 0; i < OCTREE_CHILDREN_SIZE; i++) {
         newNode->children[i] = NULL;
     }
 
     return newNode;
 }
-
 
 /*
  * Libera la memoria occupata dal OctreePool
@@ -122,11 +120,11 @@ void freeOctreePool() {
 int checkIfNodeIsLeaf(OctreeNode* node) {
     int children = 0;
     int i;
-    for (i=0; i<OCTREE_CHILDREN_SIZE; i++) {
+    for (i = 0; i < OCTREE_CHILDREN_SIZE; i++) {
         if (node->children[i] != NULL) children++;
     }
 
-    return children==0;
+    return children == 0;
 }
 
 /*
@@ -141,8 +139,10 @@ void insertBody(OctreeNode* root, Body* body) {
         return;
     }
     if (checkBodyOutsideOfOctreeNode(root, body)) {
-        fprintf(stderr, "Il body si trova al di fuori dei confini spaziali del nodo:\n"
-                        "\t body: {%2.f,%.2f,%.2f,}\n}", body->x, body->y, body->z);
+        fprintf(stderr,
+                "Il body si trova al di fuori dei confini spaziali del nodo:\n"
+                "\t body: {%2.f,%.2f,%.2f,}\n}",
+                body->x, body->y, body->z);
         return;
     }
     int i;
@@ -151,13 +151,14 @@ void insertBody(OctreeNode* root, Body* body) {
     BoundingBox currentBbox = root->bbox;
     int isLeaf = checkIfNodeIsLeaf(prevNode);
 #ifdef DEBUG
-    printf("Is leaf: %d\n",isLeaf);
+    printf("Is leaf: %d\n", isLeaf);
     printf("body:[%d,%.2f,%.2f,%.2f]\n", prevNode->id, body->x, body->y, body->z);
 #endif
 
     if (isLeaf) {
-        if (prevNode->body == NULL){ prevNode->body = body;}
-        else {
+        if (prevNode->body == NULL) {
+            prevNode->body = body;
+        } else {
             // è già presente un body, quindi scomponiamo il nodo
             divideNodeIntoOctree(prevNode);
             // non è più una foglia
@@ -168,38 +169,35 @@ void insertBody(OctreeNode* root, Body* body) {
     OctreeNode* currentNode = NULL;
     while (!isLeaf) {
         // il nodo ha dei figli
-        for (i=0; i<OCTREE_CHILDREN_SIZE; i++) {
+        for (i = 0; i < OCTREE_CHILDREN_SIZE; i++) {
             currentNode = prevNode->children[i];
-            if (currentNode == NULL) {continue;}
+            if (currentNode == NULL) {
+                continue;
+            }
             currentBbox = currentNode->bbox;
 
             int bodyShouldBeInsideNode = !checkBodyOutsideOfOctreeNode(currentNode, body);
 
-            if (bodyShouldBeInsideNode ) {
+            if (bodyShouldBeInsideNode) {
                 isLeaf = checkIfNodeIsLeaf(currentNode);
                 if (isLeaf) {
-                    if (currentNode->body != NULL){
+                    if (currentNode->body != NULL) {
                         divideNodeIntoOctree(currentNode);
                         prevNode = currentNode;
                         isLeaf = 0;
                         break;
-                    }
-                    else {
+                    } else {
                         currentNode->body = body;
-                        isLeaf=1;
+                        isLeaf = 1;
                         break;
                     }
-                }else {
+                } else {
                     prevNode = currentNode;
                     break;
                 }
-
             }
-
         }
     }
-
-
 }
 
 /*
@@ -222,35 +220,37 @@ void divideNodeIntoOctree(OctreeNode* node) {
     int childrenCounter = 0;
 
 #ifdef DEBUG
-    printf("(%d) -> {\nmin_x=%.2f,\nmax_x=%.2f,\nmin_y=%.2f,\nmax_y=%.2f,\nmin_z=%.2f,\nmax_z=%.2f,\n]\n\n",
-        node->id, node->bbox.min_x, node->bbox.max_x,node->bbox.min_y,node->bbox.max_y,node->bbox.min_z,node->bbox.max_z);
+    printf("(%d) -> {\nmin_x=%.2f,\nmax_x=%.2f,\nmin_y=%.2f,\nmax_y=%.2f,\nmin_z=%.2f,\nmax_z=%.2f,\n]\n\n", node->id,
+           node->bbox.min_x, node->bbox.max_x, node->bbox.min_y, node->bbox.max_y, node->bbox.min_z, node->bbox.max_z);
 #endif
 
     // i è l'indice che gestisce lo spostamento sulle x
     int i;
-    for (i=1; i<=2; i++) {
+    for (i = 1; i <= 2; i++) {
         // j è l'indice che gestisce lo spostamento sulle y
         int j;
-        for (j=1; j<=2; j++) {
+        for (j = 1; j <= 2; j++) {
             // k è l'indice che gestisce lo spostamento sulle z
             int k;
             // generazione del cubo su ogni asse
-            for (k=1; k<=2; k++) {
+            for (k = 1; k <= 2; k++) {
                 OctreeNode* newNode = newOctreeNode();
                 BoundingBox* newBbox = &(newNode->bbox);
-                newBbox->min_x = box->min_x + (i-1) * xsize;
-                newBbox->min_y = box->min_y + (j-1) * ysize;
-                newBbox->min_z = box->min_z + (k-1) * zsize;
+                newBbox->min_x = box->min_x + (i - 1) * xsize;
+                newBbox->min_y = box->min_y + (j - 1) * ysize;
+                newBbox->min_z = box->min_z + (k - 1) * zsize;
                 newBbox->max_x = box->min_x + i * xsize;
                 newBbox->max_y = box->min_y + j * ysize;
                 newBbox->max_z = box->min_z + k * zsize;
                 node->children[childrenCounter++] = newNode;
 #ifdef DEBUG
-                printf("[(%d),%d,%d,%d] -> {\nmin_x=%.2f,\nmax_x=%.2f,\nmin_y=%.2f,\nmax_y=%.2f,\nmin_z=%.2f,\nmax_z=%.2f,\n]\n\n",
-                    node->id, i, j, k, newBbox->min_x, newBbox->max_x,newBbox->min_y,newBbox->max_y,newBbox->min_z,newBbox->max_z);
-                printf("children: %d\n",childrenCounter);
+                printf(
+                    "[(%d),%d,%d,%d] -> "
+                    "{\nmin_x=%.2f,\nmax_x=%.2f,\nmin_y=%.2f,\nmax_y=%.2f,\nmin_z=%.2f,\nmax_z=%.2f,\n]\n\n",
+                    node->id, i, j, k, newBbox->min_x, newBbox->max_x, newBbox->min_y, newBbox->max_y, newBbox->min_z,
+                    newBbox->max_z);
+                printf("children: %d\n", childrenCounter);
 #endif
-
             }
         }
     }
@@ -273,28 +273,28 @@ void traverseOctree(OctreeNode* node, int depth) {
         return;
     }
 
-    if (depth == 0)    printf("################################################\n"
-        "\t\tPRINT\n"
-           "################################################\n");
+    if (depth == 0)
+        printf(
+            "################################################\n"
+            "\t\tPRINT\n"
+            "################################################\n");
 
-    printf("%d -> {\nmin_x=%.2f,\nmax_x=%.2f,\nmin_y=%.2f,\nmax_y=%.2f,\nmin_z=%.2f,\nmax_z=%.2f,\n]\n\n",
-    node->id, node->bbox.min_x, node->bbox.max_x,node->bbox.min_y,node->bbox.max_y,node->bbox.min_z,node->bbox.max_z);
-
+    printf("%d -> {\nmin_x=%.2f,\nmax_x=%.2f,\nmin_y=%.2f,\nmax_y=%.2f,\nmin_z=%.2f,\nmax_z=%.2f,\n]\n\n", node->id,
+           node->bbox.min_x, node->bbox.max_x, node->bbox.min_y, node->bbox.max_y, node->bbox.min_z, node->bbox.max_z);
 
     if (checkIfNodeIsLeaf(node)) {
         printf("Leaf node #%d, depth %d\n", node->id, depth);
         if (node->body != NULL) {
-            printf("\tFound body:[%d,%.2f,%.2f,%.2f]\n", node->id,node->body->x, node->body->y, node->body->z);
+            printf("\tFound body:[%d,%.2f,%.2f,%.2f]\n", node->id, node->body->x, node->body->y, node->body->z);
         }
         return;
     }
 
     int i;
-    for (i=0; i<OCTREE_CHILDREN_SIZE; i++) {
-        traverseOctree(node->children[i], depth+1);
+    for (i = 0; i < OCTREE_CHILDREN_SIZE; i++) {
+        traverseOctree(node->children[i], depth + 1);
     }
 }
-
 
 /*
  * Determina se un body ricade al di fuori dei confini di un Nodo
@@ -311,11 +311,10 @@ int checkBodyOutsideOfOctreeNode(OctreeNode* node, Body* body) {
     }
 
     BoundingBox bbox = node->bbox;
-    if (body->x < bbox.min_x || body->x > bbox.max_x ||
-        body->y < bbox.min_y || body->y > bbox.max_y ||
+    if (body->x < bbox.min_x || body->x > bbox.max_x || body->y < bbox.min_y || body->y > bbox.max_y ||
         body->z < bbox.min_z || body->z > bbox.max_z) {
         return 1;
-        }
+    }
 
     return 0;
 }
@@ -342,7 +341,7 @@ OctreeNode* buildOctree(Body* bodies, int n) {
     // 2. Determina la dimensione massima per assicurare che il Bounding Box sia un cubo perfetto
     // (necessario affinché il calcolo s/dist di Barnes-Hut sia spazialmente coerente)
     float max_abs = (max_val > -min_val) ? max_val : -min_val;
-    float dimension = max_abs + 1.0f; // + 1.0f di margine per sicurezza
+    float dimension = max_abs + 1.0f;  // + 1.0f di margine per sicurezza
 
     BoundingBox* bbox = &root->bbox;
     bbox->min_x = -dimension;
@@ -353,13 +352,12 @@ OctreeNode* buildOctree(Body* bodies, int n) {
     bbox->max_z = dimension;
 
     // 3. Inserimento
-    for (i=0; i<n; i++) {
-        insertBody(root, bodies+i);
+    for (i = 0; i < n; i++) {
+        insertBody(root, bodies + i);
     }
 
     return root;
 }
-
 
 void computeCentersOfMass() {
     // Scorriamo il memory pool al contrario: dai figli (ultimi creati) alla radice (primo creato)
@@ -409,7 +407,6 @@ void computeCentersOfMass() {
     }
 }
 
-
 void calculateForce(OctreeNode* root, Body* target, float theta, float* fx, float* fy, float* fz) {
     // Stack array per evitare la ricorsione
     OctreeNode* stack[MAX_DEPTH];
@@ -440,7 +437,7 @@ void calculateForce(OctreeNode* root, Body* target, float theta, float* fx, floa
         float dz = node->cz - target->z;
 
         // Distanza al quadrato con parametro SOFTENING per evitare div/0 o forze infinite
-        float dist_sq = dx*dx + dy*dy + dz*dz + SOFTENING*SOFTENING;
+        float dist_sq = dx * dx + dy * dy + dz * dz + SOFTENING * SOFTENING;
         float dist = sqrtf(dist_sq);
 
         // s: dimensione del nodo (supponendo nodi cubici, basta un solo asse)
@@ -465,7 +462,7 @@ void calculateForce(OctreeNode* root, Body* target, float theta, float* fx, floa
             for (i = 0; i < OCTREE_CHILDREN_SIZE; i++) {
                 if (node->children[i] != NULL) {
                     if (stack_ptr < MAX_DEPTH) {
-                        stack[stack_ptr++] = node->children[i]; // Push del figlio
+                        stack[stack_ptr++] = node->children[i];  // Push del figlio
                     } else {
                         fprintf(stderr, "Stack overflow durante calculateForce!\n");
                         return;
@@ -481,18 +478,17 @@ void calculateForce(OctreeNode* root, Body* target, float theta, float* fx, floa
     *fz = target->m * acc_z;
 }
 
-
 /*
  * Aggiorna la cinematica di tutti i corpi nella simulazione.
  * dt: delta time (intervallo di tempo per ogni step, es. 0.01)
  * theta: parametro di accuratezza del Barnes-Hut (es. 0.5)
  */
-void updatePhysics(Body* bodies, int numBodies, OctreeNode* root, float theta, float dt) {
+void updatePhysicsWithIndex(Body* bodies, int start_idx, int end_idx, OctreeNode* root, float theta, float dt) {
     if (root == NULL || bodies == NULL) return;
 
     int i;
 #pragma omp parallel for private(i)
-    for (i = 0; i < numBodies; i++) {
+    for (int i = start_idx; i < end_idx; i++) {
         float fx = 0.0f, fy = 0.0f, fz = 0.0f;
 
         // 1. Calcola la forza netta agente sulla particella i-esima
@@ -513,4 +509,8 @@ void updatePhysics(Body* bodies, int numBodies, OctreeNode* root, float theta, f
         bodies[i].y += bodies[i].vy * dt;
         bodies[i].z += bodies[i].vz * dt;
     }
+}
+
+void updatePhysics(Body* bodies, int numBodies, OctreeNode* root, float theta, float dt) {
+    updatePhysicsWithIndex(bodies, 0, numBodies, root, theta, dt);
 }
