@@ -7,7 +7,7 @@ printf "network,processors,bodies,cpu_time,net_time,total_time,cache_miss_L1,cac
 
 # Compilazione
 echo "Compilazione in corso..."
-mpicc -O3 burnes_hut/parallel/nbody_burneshut_mpi.c ./papi/papi_helper.c -lm -I./papi/ -I. -fopenmp /usr/local/lib/libpapi.a -o nbody_mpi.out
+mpicc -O3 burnes_hut/parallel/nbody_burneshut_mpi.c ./papi/papi_helper.c -lm -I./papi/ -I. -fopenmp /usr/local/lib/libpapi.a -o burnes_hut/parallel/nbody_mpi.out
 echo "Compilazione completata. Inizio benchmark."
 
 # Array con tutte le dimensioni della simulazione
@@ -18,15 +18,15 @@ for size in "${BODIES[@]}"; do
 
     # TCP/IP Ethernet
     printf "tcpip/ethernet, " >> $OUTPUT_FILE
-    mpirun --mca btl self,tcp --mca btl_tcp_if_include em2 -machinefile $MACHINEFILE nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
+    mpirun --mca btl self,tcp --mca btl_tcp_if_include em2 -machinefile $MACHINEFILE burnes_hut/parallel/nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
 
     # TCP/IP InfiniBand
     printf "tcpip/infiniband, " >> $OUTPUT_FILE
-    mpirun --mca btl self,tcp --mca btl_tcp_if_include ib0 -machinefile $MACHINEFILE nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
+    mpirun --mca btl self,tcp --mca btl_tcp_if_include ib0 -machinefile $MACHINEFILE burnes_hut/parallel/nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
 
     # Native InfiniBand
     printf "native/infiniband, " >> $OUTPUT_FILE
-    mpirun --mca btl self,openib -machinefile $MACHINEFILE nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
+    mpirun --mca btl self,openib -machinefile $MACHINEFILE burnes_hut/parallel/nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
 
     echo "Attesa di 10 secondi per stabilizzare la rete..."
     sleep 10
