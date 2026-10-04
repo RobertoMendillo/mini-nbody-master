@@ -3,9 +3,9 @@
 #include <stdlib.h>
 #include <mpi.h>
 
-#include "data_structures.h"
-#include "burneshut_functions.h"
-#include "support_functions.h"
+#include "../data_structures.h"
+#include "../burneshut_functions.h"
+#include "../support_functions.h"
 
 // #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
 // #include "papi_helper.h"

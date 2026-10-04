@@ -13,6 +13,8 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <omp.h>
+
 #include "data_structures.h"
 
 #define OCTREE_CHILDREN_SIZE 8
@@ -489,6 +491,7 @@ void updatePhysics(Body* bodies, int numBodies, OctreeNode* root, float theta, f
     if (root == NULL || bodies == NULL) return;
 
     int i;
+#pragma omp parallel for private(i)
     for (i = 0; i < numBodies; i++) {
         float fx = 0.0f, fy = 0.0f, fz = 0.0f;
 
