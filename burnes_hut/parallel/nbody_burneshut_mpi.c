@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../burneshut_functions.h"
-#include "../data_structures.h"
-#include "../support_functions.h"
+#include "burnes_hut/burneshut_functions.h"
+#include "burnes_hut/data_structures.h"
+#include "burnes_hut/support_functions.h"
 
 #define MAIN_PROC 0
 
