@@ -525,18 +525,19 @@ BodiesSOA createBodiesSOA(int n) {
     size_t align = 32;
     size_t size = n * sizeof(float);
 
-    b.x  = (float*)_mm_malloc(size, align); // o aligned_alloc su POSIX
-    b.y  = (float*)_mm_malloc(size, align);
-    b.z  = (float*)_mm_malloc(size, align);
-    b.vx = (float*)_mm_malloc(size, align);
-    b.vy = (float*)_mm_malloc(size, align);
-    b.vz = (float*)_mm_malloc(size, align);
-    b.m  = (float*)_mm_malloc(size, align);
+    b.x = (float*)aligned_alloc(align, size);  // o aligned_alloc su POSIX
+    b.y = (float*)aligned_alloc(align, size);
+    b.z = (float*)aligned_alloc(align, size);
+    b.vx = (float*)aligned_alloc(align, size);
+    b.vy = (float*)aligned_alloc(align, size);
+    b.vz = (float*)aligned_alloc(align, size);
+    b.m = (float*)aligned_alloc(align, size);
 
     return b;
 }
 
-void calculateForceSOA(OctreeNodeSOA* root, BodiesSOA* bodies, int target_idx, float theta, float* fx, float* fy, float* fz) {
+void calculateForceSOA(OctreeNodeSOA* root, BodiesSOA* bodies, int target_idx, float theta, float* fx, float* fy,
+                       float* fz) {
     // Stack array per evitare la ricorsione
     OctreeNodeSOA* stack[MAX_DEPTH];
     int stack_ptr = 0;
@@ -615,42 +616,43 @@ void calculateForceSOA(OctreeNodeSOA* root, BodiesSOA* bodies, int target_idx, f
     *fz = tm * acc_z;
 }
 
-void updatePhysicsWithIndexVectorized(BodiesSOA* bodies, int start_idx, int end_idx, OctreeNodeSOA* root, float theta, float dt) {
-   if (root == NULL || bodies == NULL) return;
+void updatePhysicsWithIndexVectorized(BodiesSOA* bodies, int start_idx, int end_idx, OctreeNodeSOA* root, float theta,
+                                      float dt) {
+    if (root == NULL || bodies == NULL) return;
 
     int n = end_idx - start_idx;
 
-    // ATTENZIONE: In una simulazione reale, questi array temporanei 
-    // force_x, force_y, e force_z dovrebbero essere allocati UNA SOLA VOLTA 
+    // ATTENZIONE: In una simulazione reale, questi array temporanei
+    // force_x, force_y, e force_z dovrebbero essere allocati UNA SOLA VOLTA
     // all'inizio del programma per evitare l'overhead di malloc ad ogni step temporale.
     float* force_x = (float*)malloc(n * sizeof(float));
     float* force_y = (float*)malloc(n * sizeof(float));
     float* force_z = (float*)malloc(n * sizeof(float));
 
     int i;
-    
-    // 1. FASE DI CALCOLO FORZE (Multithreading per l'attraversamento dell'albero)
-    #pragma omp parallel for private(i)
+
+// 1. FASE DI CALCOLO FORZE (Multithreading per l'attraversamento dell'albero)
+#pragma omp parallel for private(i)
     for (i = start_idx; i < end_idx; i++) {
         float fx = 0.0f, fy = 0.0f, fz = 0.0f;
-        
+
         // NOTA: La funzione calculateForce deve essere adattata per ricevere la struttura
         // SoA (BodiesSOA*) e l'indice 'i' al posto del vecchio 'Body* target'.
         // Calcola la forza netta agente sulla particella i-esima
         calculateForceSOA(root, bodies, i, theta, &fx, &fy, &fz);
-        
+
         force_x[i - start_idx] = fx;
         force_y[i - start_idx] = fy;
         force_z[i - start_idx] = fz;
     }
 
-    // 2. FASE DI INTEGRAZIONE (Multithreading + SIMD per massima vettorializzazione)
-    // L'istruzione "aligned" suggerisce al compilatore che la memoria è allineata a 32 byte,
-    // permettendogli di usare le istruzioni di caricamento vettoriale più veloci.
-    #pragma omp parallel for
+// 2. FASE DI INTEGRAZIONE (Multithreading + SIMD per massima vettorializzazione)
+// L'istruzione "aligned" suggerisce al compilatore che la memoria è allineata a 32 byte,
+// permettendogli di usare le istruzioni di caricamento vettoriale più veloci.
+#pragma omp parallel for
     for (i = start_idx; i < end_idx; i++) {
         int idx = i - start_idx;
-        
+
         // Ricava l'accelerazione (a = F / m)
         float ax = force_x[idx] / bodies->m[i];
         float ay = force_y[idx] / bodies->m[i];
@@ -688,7 +690,7 @@ void resetOctreePoolSOA() {
     for (i = 0; i < pool_soa_max_nodes; i++) {
         OctreeNodeSOA* node = &pool_soa_nodes[i];
         node->id = 0;
-        node->body_id = -1; // -1 indica che non c'è nessun body
+        node->body_id = -1;  // -1 indica che non c'è nessun body
         int j;
         for (j = 0; j < OCTREE_CHILDREN_SIZE; j++) {
             node->children[j] = NULL;
@@ -723,9 +725,9 @@ OctreeNodeSOA* newOctreeNodeSOA() {
 int checkIfNodeIsLeafSOA(OctreeNodeSOA* node) {
     int i;
     for (i = 0; i < OCTREE_CHILDREN_SIZE; i++) {
-        if (node->children[i] != NULL) return 0; // Falso, ha figli
+        if (node->children[i] != NULL) return 0;  // Falso, ha figli
     }
-    return 1; // Vero, è una foglia
+    return 1;  // Vero, è una foglia
 }
 
 int checkBodyOutsideOfOctreeNodeSOA(OctreeNodeSOA* node, BodiesSOA* bodies, int body_idx) {
@@ -734,9 +736,8 @@ int checkBodyOutsideOfOctreeNodeSOA(OctreeNodeSOA* node, BodiesSOA* bodies, int 
     float by = bodies->y[body_idx];
     float bz = bodies->z[body_idx];
 
-    if (bx < bbox.min_x || bx > bbox.max_x ||
-        by < bbox.min_y || by > bbox.max_y ||
-        bz < bbox.min_z || bz > bbox.max_z) {
+    if (bx < bbox.min_x || bx > bbox.max_x || by < bbox.min_y || by > bbox.max_y || bz < bbox.min_z ||
+        bz > bbox.max_z) {
         return 1;
     }
     return 0;
@@ -772,7 +773,7 @@ void divideNodeIntoOctreeSOA(OctreeNodeSOA* node, BodiesSOA* bodies) {
     // Se il nodo aveva un body assegnato, lo re-inseriamo nei figli
     if (node->body_id != -1) {
         int old_body_id = node->body_id;
-        node->body_id = -1; // Il nodo genitore non contiene più direttamente la particella
+        node->body_id = -1;  // Il nodo genitore non contiene più direttamente la particella
         insertBodySOA(node, bodies, old_body_id);
     }
 }
@@ -809,11 +810,11 @@ void insertBodySOA(OctreeNodeSOA* root, BodiesSOA* bodies, int body_idx) {
                     } else {
                         currentNode->body_id = body_idx;
                         isLeaf = 1;
-                        break; // Inserimento completato
+                        break;  // Inserimento completato
                     }
                 } else {
                     prevNode = currentNode;
-                    break; // Scende di un livello
+                    break;  // Scende di un livello
                 }
             }
         }
