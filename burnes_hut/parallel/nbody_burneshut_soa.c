@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
     initOctreePoolSOA(numBodies);
 
     MPI_Barrier(MPI_COMM_WORLD);
-    t0 = MPI_Wtime();
+
 
     // =========================================================================
     // 3. CICLO DI SIMULAZIONE
@@ -99,6 +99,7 @@ int main(int argc, char** argv) {
     int step;
     for (step = 0; step < nIters; step++) {
 
+        t0 = MPI_Wtime();
         // A. Costruisce l'albero spaziale SoA
         OctreeNodeSOA* root = buildOctreeSOA(&bodies, numBodies);
 
@@ -108,6 +109,8 @@ int main(int argc, char** argv) {
         // C. Calcola le forze e aggiorna posizioni (SIMD + OMP)
         updatePhysicsWithIndexVectorized(&bodies, my_start, my_end, root, theta, dt);
 
+        t1 = MPI_Wtime();
+        total_cpu_time += t1 - t0;
         // D. Sincronizzazione: tutti i nodi si scambiano le posizioni aggiornate
         net_t0 = MPI_Wtime();
 
@@ -123,8 +126,7 @@ int main(int argc, char** argv) {
         net_t1 = MPI_Wtime();
         total_net_time += (net_t1 - net_t0);
     }
-    t1 = MPI_Wtime();
-    total_cpu_time += t1 - t0;
+
 
     long long cacheMissL1 = 0LL;
     long long cacheMissL2 = 0LL;
