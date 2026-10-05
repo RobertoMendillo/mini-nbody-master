@@ -7,7 +7,7 @@ printf "bodies,total_time,cache_miss_L1,cache_miss_L2\n" > $OUTPUT_FILE
 
 # Compilazione
 echo "Compilazione in corso..."
-mpicc -O3 burnes_hut/sequential/nbody_burneshut.c burnes_hut/burneshut_functions.c ./papi/papi_helper.c -lm -I./papi/ Iburnes_hut/ /usr/local/lib/libpapi.a -o burnes_hut/sequential/nbody.out
+mpicc -O3 burnes_hut/sequential/nbody_burneshut.c burnes_hut/burneshut_functions.c ./papi/papi_helper.c -lm -I./papi/ -Iburnes_hut/ /usr/local/lib/libpapi.a -o burnes_hut/sequential/nbody.out
 echo "Compilazione completata. Inizio benchmark."
 
 # Array con tutte le dimensioni della simulazione

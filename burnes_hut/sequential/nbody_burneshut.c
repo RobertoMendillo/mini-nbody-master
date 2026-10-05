@@ -64,8 +64,9 @@ int main(int argc, char** argv) {
     initOctreePool(numBodies);
 
     t0 = MPI_Wtime();
+    int step;
     // Ciclo di simulazione (es. 1000 step)
-    for (int step = 0; step < nIters; step++) {
+    for (step = 0; step < nIters; step++) {
         // 1. Costruisce l'albero spaziale (resettando automaticamente il pool)
         OctreeNode* root = buildOctree(bodies, numBodies);
 
