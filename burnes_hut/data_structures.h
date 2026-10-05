@@ -36,3 +36,26 @@ typedef struct {
     int max_nodes;       // Capacità massima dell'array
     int next_free;       // Indice del prossimo nodo disponibile da usare
 } OctreePool;
+
+
+// SOA
+
+typedef struct {
+    float *x;
+    float *y;
+    float *z;
+    float *vx;
+    float *vy;
+    float *vz;
+    float *m;
+    int numBodies;
+} BodiesSOA;
+
+typedef struct OctreeNodeSOA {
+    int id;
+    int body_id;        // INVECE DI: Body* body;
+    float mass;
+    float cx, cy, cz;
+    BoundingBox bbox;
+    struct OctreeNodeSOA* children[8];
+} OctreeNodeSOA;

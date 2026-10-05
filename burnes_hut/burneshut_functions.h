@@ -31,3 +31,19 @@ void computeMassDistribution(OctreeNode* node);
 void computeCentersOfMass();
 void updatePhysicsWithIndex(Body* bodies, int start_idx, int end_idx, OctreeNode* root, float theta, float dt);
 void updatePhysics(Body* bodies, int numBodies, OctreeNode* root, float theta, float dt);
+
+
+// SOA
+void initOctreePoolSOA();
+void resetOctreePoolSOA();
+void randomizeBodiesSOA(BodiesSOA* bodies, int numBodies);
+OctreeNodeSOA* newOctreeNodeSOA();
+OctreeNodeSOA* buildOctreeSOA(BodiesSOA* bodies, int n);
+void insertBodySOA(OctreeNodeSOA* root, BodiesSOA* bodies, int body_idx);
+void divideNodeIntoOctreeSOA(OctreeNodeSOA* node, BodiesSOA* bodies);
+int checkBodyOutsideOfOctreeNodeSOA(OctreeNodeSOA* node, BodiesSOA* bodies, int body_idx);
+int checkIfNodeIsLeafSOA(OctreeNodeSOA* node);
+void computeCentersOfMassSOA(BodiesSOA* bodies);
+BodiesSOA createBodiesSOA(int n);
+void calculateForceSOA(OctreeNodeSOA* root, BodiesSOA* bodies, int target_idx, float theta, float* fx, float* fy, float* fz);
+void updatePhysicsWithIndexVectorized(BodiesSOA* bodies, int start_idx, int end_idx, OctreeNodeSOA* root, float theta, float dt);
