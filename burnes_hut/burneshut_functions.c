@@ -647,7 +647,7 @@ void updatePhysicsWithIndexVectorized(BodiesSOA* bodies, int start_idx, int end_
     // 2. FASE DI INTEGRAZIONE (Multithreading + SIMD per massima vettorializzazione)
     // L'istruzione "aligned" suggerisce al compilatore che la memoria è allineata a 32 byte,
     // permettendogli di usare le istruzioni di caricamento vettoriale più veloci.
-    #pragma omp parallel for simd aligned(bodies->x, bodies->y, bodies->z, bodies->vx, bodies->vy, bodies->vz, bodies->m : 32)
+    #pragma omp parallel for
     for (i = start_idx; i < end_idx; i++) {
         int idx = i - start_idx;
         
