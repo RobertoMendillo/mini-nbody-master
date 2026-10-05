@@ -7,6 +7,10 @@
 #include "data_structures.h"
 #include "support_functions.h"
 
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+#include "papi_helper.h"
+#endif
+
 #define MAIN_PROC 0
 
 int main(int argc, char** argv) {
@@ -54,6 +58,16 @@ int main(int argc, char** argv) {
     int my_start = displs[rank];
     int my_count = recvcounts[rank];
     int my_end = my_start + my_count;
+
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+    Papi_Monitor* papi_monitor = malloc(sizeof(Papi_Monitor));
+    if (papi_monitor == NULL) {
+        fprintf(stderr, "[Rank %d] Errore allocazione memoria papi_monitor\n", rank);
+        MPI_Abort(MPI_COMM_WORLD, -1);
+    }
+    papi_helper_init(papi_monitor);
+    papi_helper_start(papi_monitor);
+#endif
 
     // =========================================================================
     // 2. INIZIALIZZAZIONE DATI (SoA)
@@ -114,6 +128,14 @@ int main(int argc, char** argv) {
 
     long long cacheMissL1 = 0LL;
     long long cacheMissL2 = 0LL;
+#if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
+    papi_helper_stop(papi_monitor);
+    cacheMissL1 = papi_get_values(papi_monitor, L1_CACHE_MISS_INDEX);
+    cacheMissL2 = papi_get_values(papi_monitor, L2_CACHE_MISS_INDEX);
+
+    papi_helper_destroy(papi_monitor);
+    free(papi_monitor);
+#endif
 
     if (rank == MAIN_PROC) {
         printf("%d,%.4f,%.4f,%lld,%lld\n", numBodies, total_cpu_time, total_net_time, cacheMissL1, cacheMissL2);
