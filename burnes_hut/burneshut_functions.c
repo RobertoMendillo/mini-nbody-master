@@ -525,13 +525,14 @@ BodiesSOA createBodiesSOA(int n) {
     size_t align = 32;
     size_t size = n * sizeof(float);
 
-    b.x = (float*)aligned_alloc(align, size);  // o aligned_alloc su POSIX
-    b.y = (float*)aligned_alloc(align, size);
-    b.z = (float*)aligned_alloc(align, size);
-    b.vx = (float*)aligned_alloc(align, size);
-    b.vy = (float*)aligned_alloc(align, size);
-    b.vz = (float*)aligned_alloc(align, size);
-    b.m = (float*)aligned_alloc(align, size);
+    // posix_memalign restituisce 0 in caso di successo e popola il puntatore
+    posix_memalign((void**)&b.x, align, size);
+    posix_memalign((void**)&b.y, align, size);
+    posix_memalign((void**)&b.z, align, size);
+    posix_memalign((void**)&b.vx, align, size);
+    posix_memalign((void**)&b.vy, align, size);
+    posix_memalign((void**)&b.vz, align, size);
+    posix_memalign((void**)&b.m, align, size);
 
     return b;
 }
