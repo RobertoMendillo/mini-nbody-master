@@ -46,4 +46,7 @@ int checkIfNodeIsLeafSOA(OctreeNodeSOA* node);
 void computeCentersOfMassSOA(BodiesSOA* bodies);
 BodiesSOA createBodiesSOA(int n);
 void calculateForceSOA(OctreeNodeSOA* root, BodiesSOA* bodies, int target_idx, float theta, float* fx, float* fy, float* fz);
+
+void freeOctreePoolSOA();
+void freeBodiesSOA(BodiesSOA* bodies);
 void updatePhysicsWithIndexVectorized(BodiesSOA* bodies, int start_idx, int end_idx, OctreeNodeSOA* root, float theta, float dt);

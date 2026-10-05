@@ -121,8 +121,8 @@ int main(int argc, char** argv) {
 
     free(recvcounts);
     free(displs);
-    // freeOctreePoolSOA();
-    // _mm_free per liberare bodies.x, bodies.y...
+    freeOctreePoolSOA();
+    freeBodiesSOA(&bodies);
 
     MPI_Finalize();
     return 0;

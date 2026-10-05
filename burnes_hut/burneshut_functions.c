@@ -919,3 +919,30 @@ void randomizeBodiesSOA(BodiesSOA* bodies, int numBodies) {
         bodies->m[i] = 9.0f * ((float)rand() / RAND_MAX) + 1.0f;
     }
 }
+
+/*
+ * Libera la memoria occupata dal pool dei nodi SoA
+ */
+void freeOctreePoolSOA() {
+    if (pool_soa_nodes != NULL) {
+        free(pool_soa_nodes);
+        pool_soa_nodes = NULL;
+    }
+    pool_soa_max_nodes = 0;
+    pool_soa_next_free = 0;
+}
+
+/*
+ * Libera la memoria allineata allocata per i corpi
+ */
+void freeBodiesSOA(BodiesSOA* bodies) {
+    if (bodies == NULL) return;
+
+    free(bodies->x);
+    free(bodies->y);
+    free(bodies->z);
+    free(bodies->vx);
+    free(bodies->vy);
+    free(bodies->vz);
+    free(bodies->m);
+}
