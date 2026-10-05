@@ -11,7 +11,7 @@ mpicc -O3 burnes_hut/sequential/nbody_burneshut.c burnes_hut/burneshut_functions
 echo "Compilazione completata. Inizio benchmark."
 
 # Array con tutte le dimensioni della simulazione
-BODIES=(30000 50000 100000 200000 400000 600000)
+BODIES=(10000 20000 40000 60000 80000 100000 200000 400000 600000 800000 1000000 1200000 1400000)
 
 for size in "${BODIES[@]}"; do
   echo "Esecuzione simulazione per $size corpi..."
