@@ -3,7 +3,7 @@ OUTPUT_FILE="burnes_hut/results/results_parallel.data"
 MACHINEFILE="machinefile_p.txt"
 
 # Inizializza il file CSV
-printf "network,processors,bodies,cpu_time,net_time,total_time,cache_miss_L1,cache_miss_L2\n" > $OUTPUT_FILE
+printf "network,bodies,cpu_time,net_time,cache_miss_L1,cache_miss_L2\n" > $OUTPUT_FILE
 
 # Compilazione
 echo "Compilazione in corso..."
@@ -17,15 +17,15 @@ for size in "${BODIES[@]}"; do
     echo "Esecuzione simulazione per $size corpi..."
 
     # TCP/IP Ethernet
-    printf "tcpip/ethernet, " >> $OUTPUT_FILE
+    printf "tcpip/ethernet," >> $OUTPUT_FILE
     mpirun --mca btl self,tcp --mca btl_tcp_if_include em2 -machinefile $MACHINEFILE burnes_hut/parallel/nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
 
     # TCP/IP InfiniBand
-    printf "tcpip/infiniband, " >> $OUTPUT_FILE
+    printf "tcpip/infiniband," >> $OUTPUT_FILE
     mpirun --mca btl self,tcp --mca btl_tcp_if_include ib0 -machinefile $MACHINEFILE burnes_hut/parallel/nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
 
     # Native InfiniBand
-    printf "native/infiniband, " >> $OUTPUT_FILE
+    printf "native/infiniband," >> $OUTPUT_FILE
     mpirun --mca btl self,openib -machinefile $MACHINEFILE burnes_hut/parallel/nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
 
     echo "Attesa di 10 secondi per stabilizzare la rete..."
