@@ -46,7 +46,8 @@ int main(int argc, char** argv) {
     int remainder = numBodies % size;
     int offset = 0;
 
-    for (int i = 0; i < size; i++) {
+    int i;
+    for (i = 0; i < size; i++) {
         int count = numBodies / size + (i < remainder ? 1 : 0);
 
         body_counts[i] = count;
@@ -109,7 +110,8 @@ int main(int argc, char** argv) {
     // =========================================================================
     // 4. CICLO DI SIMULAZIONE
     // =========================================================================
-    for (int step = 0; step < nIters; step++) {
+    int step;
+    for (step = 0; step < nIters; step++) {
         t0 = MPI_Wtime();
 
         // A. Costruzione dell'albero spaziale SoA
@@ -128,8 +130,9 @@ int main(int argc, char** argv) {
         net_t0 = MPI_Wtime();
 
         // 1) Pack locale: copiamo x, y, z in send_coords_buf (contiguo)
-        #pragma omp parallel for simd schedule(static)
-        for (int i = 0; i < my_count; i++) {
+        int i;
+        #pragma omp parallel for schedule(static)
+        for (i = 0; i < my_count; i++) {
             int global_i = my_start + i;
             send_coords_buf[i * 3 + 0] = bodies.x[global_i];
             send_coords_buf[i * 3 + 1] = bodies.y[global_i];
@@ -142,8 +145,9 @@ int main(int argc, char** argv) {
                        MPI_COMM_WORLD);
 
         // 3) Unpack globale: ripopoliamo i vettori SoA (x, y, z) per il prossimo step
-        #pragma omp parallel for simd schedule(static)
-        for (int i = 0; i < numBodies; i++) {
+        int i;
+        #pragma omp parallel for schedule(static)
+        for (i = 0; i < numBodies; i++) {
             bodies.x[i] = recv_coords_buf[i * 3 + 0];
             bodies.y[i] = recv_coords_buf[i * 3 + 1];
             bodies.z[i] = recv_coords_buf[i * 3 + 2];

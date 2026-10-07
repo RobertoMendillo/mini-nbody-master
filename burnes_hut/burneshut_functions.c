@@ -636,7 +636,7 @@ void updatePhysicsWithIndexVectorized(BodiesSOA* bodies, int start_idx, int end_
     }
 
     // 2. FASE DI INTEGRAZIONE (Multithreading + SIMD Vettorializzato)
-#pragma omp parallel for simd schedule(static)
+#pragma omp parallel for schedule(static)
     for (i = start_idx; i < end_idx; i++) {
         int idx = i - start_idx;
 
