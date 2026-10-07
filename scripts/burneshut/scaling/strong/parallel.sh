@@ -12,7 +12,7 @@ echo "Compilazione completata. Inizio benchmark."
 
 # Array con i thread OpenMP e le dimensioni della simulazione
 THREADS=(1 2 4 8 16)
-BODIES=(50000 100000 200000 400000 600000 800000 1000000 1200000 1400000)
+BODIES=(50000 200000 400000 800000 1600000)
 
 for t in "${THREADS[@]}"; do
     echo "=========================================================="
