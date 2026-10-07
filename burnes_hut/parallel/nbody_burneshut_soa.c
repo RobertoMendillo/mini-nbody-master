@@ -38,26 +38,30 @@ int main(int argc, char** argv) {
     // =========================================================================
     // 1. PARTIZIONAMENTO DEL LAVORO
     // =========================================================================
-    int* recvcounts = malloc(size * sizeof(int));
-    int* displs = malloc(size * sizeof(int));
+    int* body_counts = malloc(size * sizeof(int));
+    int* body_displs = malloc(size * sizeof(int));
+    int* mpi_counts  = malloc(size * sizeof(int)); // 3 * body_counts (x, y, z)
+    int* mpi_displs  = malloc(size * sizeof(int)); // 3 * body_displs
 
     int remainder = numBodies % size;
     int offset = 0;
 
-    int i;
-    for (i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
         int count = numBodies / size + (i < remainder ? 1 : 0);
 
-        // Per il SoA, usiamo direttamente il numero di elementi per MPI_FLOAT
-        recvcounts[i] = count;
-        displs[i] = offset;
+        body_counts[i] = count;
+        body_displs[i] = offset;
+
+        // Impacchettiamo (x, y, z) insieme: ogni corpo richiede 3 float
+        mpi_counts[i] = count * 3;
+        mpi_displs[i] = offset * 3;
 
         offset += count;
     }
 
-    int my_start = displs[rank];
-    int my_count = recvcounts[rank];
-    int my_end = my_start + my_count;
+    int my_start = body_displs[rank];
+    int my_count = body_counts[rank];
+    int my_end   = my_start + my_count;
 
 #if defined(__linux__) && (defined(__x86_64__) || defined(__i386__))
     Papi_Monitor* papi_monitor = malloc(sizeof(Papi_Monitor));
@@ -75,58 +79,86 @@ int main(int argc, char** argv) {
     BodiesSOA bodies = createBodiesSOA(numBodies);
 
     if (rank == MAIN_PROC) {
-        // NOTA: Dovrai aggiornare anche randomizeBodies per accettare &bodies
         randomizeBodiesSOA(&bodies, numBodies);
     }
 
-    // Il processo MAIN distribuisce lo stato iniziale: trasmettiamo gli array separatamente
+    // Distribuzione iniziale
     MPI_Bcast(bodies.x, numBodies, MPI_FLOAT, MAIN_PROC, MPI_COMM_WORLD);
     MPI_Bcast(bodies.y, numBodies, MPI_FLOAT, MAIN_PROC, MPI_COMM_WORLD);
     MPI_Bcast(bodies.z, numBodies, MPI_FLOAT, MAIN_PROC, MPI_COMM_WORLD);
     MPI_Bcast(bodies.vx, numBodies, MPI_FLOAT, MAIN_PROC, MPI_COMM_WORLD);
     MPI_Bcast(bodies.vy, numBodies, MPI_FLOAT, MAIN_PROC, MPI_COMM_WORLD);
     MPI_Bcast(bodies.vz, numBodies, MPI_FLOAT, MAIN_PROC, MPI_COMM_WORLD);
-    MPI_Bcast(bodies.m, numBodies, MPI_FLOAT, MAIN_PROC, MPI_COMM_WORLD);
+    MPI_Bcast(bodies.m,  numBodies, MPI_FLOAT, MAIN_PROC, MPI_COMM_WORLD);
 
     initOctreePoolSOA(numBodies);
 
+    // =========================================================================
+    // 3. BUFFER AUSILIARI (Allocati una sola volta fuori dal ciclo)
+    // =========================================================================
+    float* force_x = (float*)malloc(my_count * sizeof(float));
+    float* force_y = (float*)malloc(my_count * sizeof(float));
+    float* force_z = (float*)malloc(my_count * sizeof(float));
+
+    // Buffer locale per inviare [x, y, z] e globale per ricevere tutto con UNA SOLA Allgatherv
+    float* send_coords_buf = (float*)malloc(my_count * 3 * sizeof(float));
+    float* recv_coords_buf = (float*)malloc(numBodies * 3 * sizeof(float));
+
     MPI_Barrier(MPI_COMM_WORLD);
 
-
     // =========================================================================
-    // 3. CICLO DI SIMULAZIONE
+    // 4. CICLO DI SIMULAZIONE
     // =========================================================================
-    int step;
-    for (step = 0; step < nIters; step++) {
-
+    for (int step = 0; step < nIters; step++) {
         t0 = MPI_Wtime();
-        // A. Costruisce l'albero spaziale SoA
+
+        // A. Costruzione dell'albero spaziale SoA
         OctreeNodeSOA* root = buildOctreeSOA(&bodies, numBodies);
 
-        // B. Calcola i centri di massa
+        // B. Calcolo centri di massa
         computeCentersOfMassSOA(&bodies);
 
-        // C. Calcola le forze e aggiorna posizioni (SIMD + OMP)
-        updatePhysicsWithIndexVectorized(&bodies, my_start, my_end, root, theta, dt);
+        // C. Calcolo forze e aggiornamento posizioni (SIMD + OMP)
+        updatePhysicsWithIndexVectorized(&bodies, my_start, my_end, root, theta, dt, force_x, force_y, force_z);
 
         t1 = MPI_Wtime();
-        total_cpu_time += t1 - t0;
-        // D. Sincronizzazione: tutti i nodi si scambiano le posizioni aggiornate
+        total_cpu_time += (t1 - t0);
+
+        // D. Sincronizzazione Rete
         net_t0 = MPI_Wtime();
 
-        // Raccogliamo separatamente le coordinate e le velocità
-        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, bodies.x, recvcounts, displs, MPI_FLOAT, MPI_COMM_WORLD);
-        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, bodies.y, recvcounts, displs, MPI_FLOAT, MPI_COMM_WORLD);
-        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, bodies.z, recvcounts, displs, MPI_FLOAT, MPI_COMM_WORLD);
-        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, bodies.vx, recvcounts, displs, MPI_FLOAT, MPI_COMM_WORLD);
-        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, bodies.vy, recvcounts, displs, MPI_FLOAT, MPI_COMM_WORLD);
-        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, bodies.vz, recvcounts, displs, MPI_FLOAT, MPI_COMM_WORLD);
-        // Non serve raccogliere la massa (bodies.m) perché non cambia mai!
+        // 1) Pack locale: copiamo x, y, z in send_coords_buf (contiguo)
+        #pragma omp parallel for simd schedule(static)
+        for (int i = 0; i < my_count; i++) {
+            int global_i = my_start + i;
+            send_coords_buf[i * 3 + 0] = bodies.x[global_i];
+            send_coords_buf[i * 3 + 1] = bodies.y[global_i];
+            send_coords_buf[i * 3 + 2] = bodies.z[global_i];
+        }
+
+        // 2) UNICA CHIAMATA DI RETE per tutti i dati e tutti i nodi
+        MPI_Allgatherv(send_coords_buf, my_count * 3, MPI_FLOAT,
+                       recv_coords_buf, mpi_counts, mpi_displs, MPI_FLOAT,
+                       MPI_COMM_WORLD);
+
+        // 3) Unpack globale: ripopoliamo i vettori SoA (x, y, z) per il prossimo step
+        #pragma omp parallel for simd schedule(static)
+        for (int i = 0; i < numBodies; i++) {
+            bodies.x[i] = recv_coords_buf[i * 3 + 0];
+            bodies.y[i] = recv_coords_buf[i * 3 + 1];
+            bodies.z[i] = recv_coords_buf[i * 3 + 2];
+        }
 
         net_t1 = MPI_Wtime();
         total_net_time += (net_t1 - net_t0);
     }
 
+    // Deallocazione buffer ausiliari
+    free(force_x);
+    free(force_y);
+    free(force_z);
+    free(send_coords_buf);
+    free(recv_coords_buf);
 
     long long cacheMissL1 = 0LL;
     long long cacheMissL2 = 0LL;
@@ -143,8 +175,10 @@ int main(int argc, char** argv) {
         printf("%d,%.4f,%.4f,%lld,%lld\n", numBodies, total_cpu_time, total_net_time, cacheMissL1, cacheMissL2);
     }
 
-    free(recvcounts);
-    free(displs);
+    free(body_counts);
+    free(body_displs);
+    free(mpi_counts);
+    free(mpi_displs);
     freeOctreePoolSOA();
     freeBodiesSOA(&bodies);
 

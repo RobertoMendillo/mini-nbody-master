@@ -618,61 +618,41 @@ void calculateForceSOA(OctreeNodeSOA* root, BodiesSOA* bodies, int target_idx, f
 }
 
 void updatePhysicsWithIndexVectorized(BodiesSOA* bodies, int start_idx, int end_idx, OctreeNodeSOA* root, float theta,
-                                      float dt) {
+                                      float dt, float *force_x, float *force_y, float *force_z) {
     if (root == NULL || bodies == NULL) return;
-
-    int n = end_idx - start_idx;
-
-    // ATTENZIONE: In una simulazione reale, questi array temporanei
-    // force_x, force_y, e force_z dovrebbero essere allocati UNA SOLA VOLTA
-    // all'inizio del programma per evitare l'overhead di malloc ad ogni step temporale.
-    float* force_x = (float*)malloc(n * sizeof(float));
-    float* force_y = (float*)malloc(n * sizeof(float));
-    float* force_z = (float*)malloc(n * sizeof(float));
 
     int i;
 
-// 1. FASE DI CALCOLO FORZE (Multithreading per l'attraversamento dell'albero)
-#pragma omp parallel for private(i)
+    // 1. FASE DI CALCOLO FORZE (Multithreading sui rami dell'Octree)
+#pragma omp parallel for private(i) schedule(guided)
     for (i = start_idx; i < end_idx; i++) {
         float fx = 0.0f, fy = 0.0f, fz = 0.0f;
-
-        // NOTA: La funzione calculateForce deve essere adattata per ricevere la struttura
-        // SoA (BodiesSOA*) e l'indice 'i' al posto del vecchio 'Body* target'.
-        // Calcola la forza netta agente sulla particella i-esima
         calculateForceSOA(root, bodies, i, theta, &fx, &fy, &fz);
 
-        force_x[i - start_idx] = fx;
-        force_y[i - start_idx] = fy;
-        force_z[i - start_idx] = fz;
+        int idx = i - start_idx;
+        force_x[idx] = fx;
+        force_y[idx] = fy;
+        force_z[idx] = fz;
     }
 
-// 2. FASE DI INTEGRAZIONE (Multithreading + SIMD per massima vettorializzazione)
-// L'istruzione "aligned" suggerisce al compilatore che la memoria è allineata a 32 byte,
-// permettendogli di usare le istruzioni di caricamento vettoriale più veloci.
-#pragma omp parallel for
+    // 2. FASE DI INTEGRAZIONE (Multithreading + SIMD Vettorializzato)
+#pragma omp parallel for simd schedule(static)
     for (i = start_idx; i < end_idx; i++) {
         int idx = i - start_idx;
 
-        // Ricava l'accelerazione (a = F / m)
-        float ax = force_x[idx] / bodies->m[i];
-        float ay = force_y[idx] / bodies->m[i];
-        float az = force_z[idx] / bodies->m[i];
+        float inv_m = 1.0f / bodies->m[i];
+        float ax = force_x[idx] * inv_m;
+        float ay = force_y[idx] * inv_m;
+        float az = force_z[idx] * inv_m;
 
-        // Aggiorna la velocità usando l'accelerazione corrente
         bodies->vx[i] += ax * dt;
         bodies->vy[i] += ay * dt;
         bodies->vz[i] += az * dt;
 
-        // Aggiorna la posizione usando la NUOVA velocità (Eulero Simplettico)
         bodies->x[i] += bodies->vx[i] * dt;
         bodies->y[i] += bodies->vy[i] * dt;
         bodies->z[i] += bodies->vz[i] * dt;
     }
-
-    free(force_x);
-    free(force_y);
-    free(force_z);
 }
 
 // Variabili globali per il pool SoA
