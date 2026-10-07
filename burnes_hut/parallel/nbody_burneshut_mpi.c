@@ -47,30 +47,32 @@ int main(int argc, char** argv) {
 
     // =========================================================================
     // 1. PARTIZIONAMENTO DEL LAVORO
-    // Calcoliamo quanti corpi deve gestire ogni processo e gli offset
     // =========================================================================
-    int* recvcounts = malloc(size * sizeof(int));
-    int* displs = malloc(size * sizeof(int));
+    int* body_counts = malloc(size * sizeof(int));
+    int* body_displs = malloc(size * sizeof(int));
+    int* mpi_counts  = malloc(size * sizeof(int)); // 3 * body_counts (x, y, z)
+    int* mpi_displs  = malloc(size * sizeof(int)); // 3 * body_displs
 
     int remainder = numBodies % size;
     int offset = 0;
 
     int i;
     for (i = 0; i < size; i++) {
-        // I primi 'remainder' processi prendono un corpo in più
         int count = numBodies / size + (i < remainder ? 1 : 0);
 
-        // Calcoliamo i byte per MPI_Allgatherv
-        recvcounts[i] = count * sizeof(Body);
-        displs[i] = offset * sizeof(Body);
+        body_counts[i] = count;
+        body_displs[i] = offset;
+
+        // Trasmettiamo 3 float per corpo (solo x, y, z)
+        mpi_counts[i] = count * 3;
+        mpi_displs[i] = offset * 3;
 
         offset += count;
     }
 
-    // Indici utili per il processo corrente (non in byte, ma in indici array)
-    int my_start = displs[rank] / sizeof(Body);
-    int my_count = recvcounts[rank] / sizeof(Body);
-    int my_end = my_start + my_count;
+    int my_start = body_displs[rank];
+    int my_count = body_counts[rank];
+    int my_end   = my_start + my_count;
 
     // =========================================================================
     // 2. INIZIALIZZAZIONE DATI
@@ -81,42 +83,69 @@ int main(int argc, char** argv) {
         randomizeBodies(bodies, numBodies);
     }
 
-    // Il processo MAIN distribuisce lo stato iniziale a tutti gli altri nodi
+    // Il processo MAIN distribuisce lo stato iniziale completo a tutti i nodi
     MPI_Bcast(bodies, numBodies * sizeof(Body), MPI_BYTE, MAIN_PROC, MPI_COMM_WORLD);
 
     initOctreePool(numBodies);
 
-    MPI_Barrier(MPI_COMM_WORLD);  // Sincronizzazione prima di far partire i timer
+    // =========================================================================
+    // 3. BUFFER DI COMUNICAZIONE (Ottimizzazione di Rete)
+    // =========================================================================
+    // Inviamo solo le coordinate 3D dei corpi locali e riceviamo quelle di tutti i corpi
+    float* send_coords_buf = (float*)malloc(my_count * 3 * sizeof(float));
+    float* recv_coords_buf = (float*)malloc(numBodies * 3 * sizeof(float));
 
+    MPI_Barrier(MPI_COMM_WORLD);
 
     // =========================================================================
-    // 3. CICLO DI SIMULAZIONE
+    // 4. CICLO DI SIMULAZIONE
     // =========================================================================
     int step;
     for (step = 0; step < nIters; step++) {
         t0 = MPI_Wtime();
-        // A. Costruisce l'albero spaziale per TUTTI i corpi (avviene in parallelo su ogni nodo)
+        // A. Costruisce l'albero spaziale per TUTTI i corpi
         OctreeNode* root = buildOctree(bodies, numBodies);
 
-        // B. Calcola i centri di massa dal basso verso l'alto
+        // B. Calcola i centri di massa
         computeCentersOfMass();
 
         // C. Calcola le forze e aggiorna posizioni SOLO per la propria porzione (my_start -> my_end)
-        // [!] ATTENZIONE: Devi modificare updatePhysics per accettare my_start e my_end
         updatePhysicsWithIndex(bodies, my_start, my_end, root, theta, dt);
         t1 = MPI_Wtime();
-        total_cpu_time += t1 - t0;
+        total_cpu_time += (t1 - t0);
 
-        // D. Sincronizzazione: tutti i nodi si scambiano le posizioni aggiornate
+        // D. Sincronizzazione Rete
         net_t0 = MPI_Wtime();
 
-        // Usiamo MPI_IN_PLACE perché i dati aggiornati dal rank corrente
-        // si trovano già nella corretta posizione nell'array 'bodies'
-        MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DATATYPE_NULL, bodies, recvcounts, displs, MPI_BYTE, MPI_COMM_WORLD);
+        // 1) Pack: estraiamo solo (x, y, z) dei corpi aggiornati localmente
+        #pragma omp parallel for schedule(static)
+        for (i = 0; i < my_count; i++) {
+            int global_i = my_start + i;
+            send_coords_buf[i * 3 + 0] = bodies[global_i].x;
+            send_coords_buf[i * 3 + 1] = bodies[global_i].y;
+            send_coords_buf[i * 3 + 2] = bodies[global_i].z;
+        }
+
+        // 2) Invio delle sole posizioni con una singola operazione collettiva
+        MPI_Allgatherv(send_coords_buf, my_count * 3, MPI_FLOAT,
+                       recv_coords_buf, mpi_counts, mpi_displs, MPI_FLOAT,
+                       MPI_COMM_WORLD);
+
+        // 3) Unpack: aggiorniamo le coordinate (x, y, z) di tutti i corpi per il prossimo step
+        #pragma omp parallel for schedule(static)
+        for (i = 0; i < numBodies; i++) {
+            bodies[i].x = recv_coords_buf[i * 3 + 0];
+            bodies[i].y = recv_coords_buf[i * 3 + 1];
+            bodies[i].z = recv_coords_buf[i * 3 + 2];
+        }
 
         net_t1 = MPI_Wtime();
         total_net_time += (net_t1 - net_t0);
     }
+
+    // Deallocazione buffer ausiliari
+    free(send_coords_buf);
+    free(recv_coords_buf);
 
     long long cacheMissL1 = 0LL;
     long long cacheMissL2 = 0LL;
@@ -129,14 +158,14 @@ int main(int argc, char** argv) {
     free(papi_monitor);
 #endif
 
-    // Output stampato solo dal processo principale
     if (rank == MAIN_PROC) {
         printf("%d,%.4f,%.4f,%lld,%lld\n", numBodies, total_cpu_time, total_net_time, cacheMissL1, cacheMissL2);
-        // printf("Tempo comunicazione (Network): %.4f\n", total_net_time);
     }
 
-    free(recvcounts);
-    free(displs);
+    free(body_counts);
+    free(body_displs);
+    free(mpi_counts);
+    free(mpi_displs);
     freeOctreePool();
     free(bodies);
 
