@@ -1,5 +1,5 @@
 #!/bin/bash
-OUTPUT_FILE="burnes_hut/results/results_parallel.data"
+OUTPUT_FILE="burnes_hut/results/scaling/strong/results_parallel.data"
 MACHINEFILE="machinefile_p.txt"
 
 # Inizializza il file CSV aggiungendo la colonna 'threads'
