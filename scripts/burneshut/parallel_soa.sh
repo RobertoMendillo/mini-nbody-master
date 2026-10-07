@@ -20,9 +20,15 @@ for size in "${BODIES[@]}"; do
     printf "tcpip/ethernet," >> $OUTPUT_FILE
     mpirun --mca btl self,tcp --mca btl_tcp_if_include em2 -machinefile $MACHINEFILE burnes_hut/parallel/nbody_mpi_soa.out "$size" >> $OUTPUT_FILE 2>&1
 
+    echo "Attesa di 10 secondi per stabilizzare la rete..."
+    sleep 10
+
     # TCP/IP InfiniBand
     printf "tcpip/infiniband," >> $OUTPUT_FILE
     mpirun --mca btl self,tcp --mca btl_tcp_if_include ib0 -machinefile $MACHINEFILE burnes_hut/parallel/nbody_mpi_soa.out "$size" >> $OUTPUT_FILE 2>&1
+
+    echo "Attesa di 10 secondi per stabilizzare la rete..."
+    sleep 10
 
     # Native InfiniBand
     printf "native/infiniband," >> $OUTPUT_FILE
