@@ -130,7 +130,6 @@ int main(int argc, char** argv) {
         net_t0 = MPI_Wtime();
 
         // 1) Pack locale: copiamo x, y, z in send_coords_buf (contiguo)
-        int i;
         #pragma omp parallel for schedule(static)
         for (i = 0; i < my_count; i++) {
             int global_i = my_start + i;
@@ -145,7 +144,6 @@ int main(int argc, char** argv) {
                        MPI_COMM_WORLD);
 
         // 3) Unpack globale: ripopoliamo i vettori SoA (x, y, z) per il prossimo step
-        int i;
         #pragma omp parallel for schedule(static)
         for (i = 0; i < numBodies; i++) {
             bodies.x[i] = recv_coords_buf[i * 3 + 0];
