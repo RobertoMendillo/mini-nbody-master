@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
 #endif
 
     // =========================================================================
-    // 1. PARTIZIONAMENTO DEL LAVORO
+    // PARTIZIONAMENTO DEL LAVORO
     // =========================================================================
     int* body_counts = malloc(size * sizeof(int));
     int* body_displs = malloc(size * sizeof(int));
@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
     int my_end   = my_start + my_count;
 
     // =========================================================================
-    // 2. INIZIALIZZAZIONE DATI
+    // INIZIALIZZAZIONE DATI
     // =========================================================================
     Body* bodies = malloc(numBodies * sizeof(Body));
 
@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
     initOctreePool(numBodies);
 
     // =========================================================================
-    // 3. BUFFER DI COMUNICAZIONE (Ottimizzazione di Rete)
+    // BUFFER DI COMUNICAZIONE (Ottimizzazione di Rete)
     // =========================================================================
     // Inviamo solo le coordinate 3D dei corpi locali e riceviamo quelle di tutti i corpi
     float* send_coords_buf = (float*)malloc(my_count * 3 * sizeof(float));
