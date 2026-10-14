@@ -7,7 +7,7 @@ MACHINEFILE="machinefile_p.txt"
 
 # Compilazione
 echo "Compilazione in corso..."
-mpicc -O3 $SOURCEFILE ./papi/papi_helper.c -lm -I./papi/ -Iburnes_hut/ -fopenmp /usr/local/lib/libpapi.a -o burnes_hut/parallel/nbody_mpi.out
+mpicc -O3 $SOURCEFILE ./papi/papi_helper.c -lm -I./papi/ -Iburnes_hut/ -fopenmp /usr/local/lib/libpapi.a -o burnes_hut/parallel/scaling/nbody_mpi.out
 echo "Compilazione completata. Inizio benchmark."
 
 # Intestazione CSV (campi script + output di nbody_burneshut_mpi.c)
