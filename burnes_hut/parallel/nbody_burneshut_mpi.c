@@ -50,8 +50,8 @@ int main(int argc, char** argv) {
     // =========================================================================
     int* body_counts = malloc(size * sizeof(int));
     int* body_displs = malloc(size * sizeof(int));
-    int* mpi_counts  = malloc(size * sizeof(int)); // 3 * body_counts (x, y, z)
-    int* mpi_displs  = malloc(size * sizeof(int)); // 3 * body_displs
+    int* mpi_counts = malloc(size * sizeof(int));  // 3 * body_counts (x, y, z)
+    int* mpi_displs = malloc(size * sizeof(int));  // 3 * body_displs
 
     int remainder = numBodies % size;
     int offset = 0;
@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
 
     int my_start = body_displs[rank];
     int my_count = body_counts[rank];
-    int my_end   = my_start + my_count;
+    int my_end = my_start + my_count;
 
     // =========================================================================
     // INIZIALIZZAZIONE DATI
@@ -117,8 +117,8 @@ int main(int argc, char** argv) {
         // D. Sincronizzazione Rete
         net_t0 = MPI_Wtime();
 
-        // 1) Pack: estraiamo solo (x, y, z) dei corpi aggiornati localmente
-        #pragma omp parallel for schedule(static)
+// 1) Pack: estraiamo solo (x, y, z) dei corpi aggiornati localmente
+#pragma omp parallel for schedule(static)
         for (i = 0; i < my_count; i++) {
             int global_i = my_start + i;
             send_coords_buf[i * 3 + 0] = bodies[global_i].x;
@@ -127,12 +127,11 @@ int main(int argc, char** argv) {
         }
 
         // 2) Invio delle sole posizioni con una singola operazione collettiva
-        MPI_Allgatherv(send_coords_buf, my_count * 3, MPI_FLOAT,
-                       recv_coords_buf, mpi_counts, mpi_displs, MPI_FLOAT,
+        MPI_Allgatherv(send_coords_buf, my_count * 3, MPI_FLOAT, recv_coords_buf, mpi_counts, mpi_displs, MPI_FLOAT,
                        MPI_COMM_WORLD);
 
-        // 3) Unpack: aggiorniamo le coordinate (x, y, z) di tutti i corpi per il prossimo step
-        #pragma omp parallel for schedule(static)
+// 3) Unpack: aggiorniamo le coordinate (x, y, z) di tutti i corpi per il prossimo step
+#pragma omp parallel for schedule(static)
         for (i = 0; i < numBodies; i++) {
             bodies[i].x = recv_coords_buf[i * 3 + 0];
             bodies[i].y = recv_coords_buf[i * 3 + 1];
