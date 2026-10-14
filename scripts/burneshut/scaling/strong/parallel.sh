@@ -24,21 +24,21 @@ for t in "${THREADS[@]}"; do
 
         # TCP/IP Ethernet
         printf "tcpip/ethernet,$t," >> $OUTPUT_FILE
-        mpirun -x OMP_NUM_THREADS=$t --mca btl self,tcp --mca btl_tcp_if_include em2 -machinefile $MACHINEFILE burnes_hut/parallel/nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
+        mpirun --map-by node -x OMP_NUM_THREADS=$t --mca btl self,tcp --mca btl_tcp_if_include em2 -machinefile $MACHINEFILE burnes_hut/parallel/nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
 
         echo "Attesa di 10 secondi per stabilizzare la rete..."
         sleep 10
 
         # TCP/IP InfiniBand
         printf "tcpip/infiniband,$t," >> $OUTPUT_FILE
-        mpirun -x OMP_NUM_THREADS=$t --mca btl self,tcp --mca btl_tcp_if_include ib0 -machinefile $MACHINEFILE burnes_hut/parallel/nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
+        mpirun --map-by node -x OMP_NUM_THREADS=$t --mca btl self,tcp --mca btl_tcp_if_include ib0 -machinefile $MACHINEFILE burnes_hut/parallel/nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
 
         echo "Attesa di 10 secondi per stabilizzare la rete..."
         sleep 10
 
         # Native InfiniBand
         printf "native/infiniband,$t," >> $OUTPUT_FILE
-        mpirun -x OMP_NUM_THREADS=$t --mca btl self,openib -machinefile $MACHINEFILE burnes_hut/parallel/nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
+        mpirun --map-by node -x OMP_NUM_THREADS=$t --mca btl self,openib -machinefile $MACHINEFILE burnes_hut/parallel/nbody_mpi.out "$size" >> $OUTPUT_FILE 2>&1
 
         echo "Attesa di 10 secondi per stabilizzare la rete..."
         sleep 10
