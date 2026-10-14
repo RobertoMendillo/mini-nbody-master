@@ -158,8 +158,8 @@ int main(int argc, char** argv) {
     free(papi_monitor);
 #endif
 
+    int threads = omp_get_max_threads();
     if (rank == MAIN_PROC) {
-        int threads = omp_get_num_threads();
         printf("%d,%d,%.4f,%.4f\n", numBodies, threads, total_cpu_time, total_net_time);
     }
 
