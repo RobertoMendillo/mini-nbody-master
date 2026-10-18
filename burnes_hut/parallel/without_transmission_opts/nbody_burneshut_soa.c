@@ -1,4 +1,4 @@
-﻿#include <math.h>
+#include <math.h>
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -90,6 +90,10 @@ int main(int argc, char** argv) {
 
     initOctreePoolSOA(numBodies);
 
+    float* force_x = (float*)malloc(my_count * sizeof(float));
+    float* force_y = (float*)malloc(my_count * sizeof(float));
+    float* force_z = (float*)malloc(my_count * sizeof(float));
+
     MPI_Barrier(MPI_COMM_WORLD);
 
 
@@ -107,7 +111,7 @@ int main(int argc, char** argv) {
         computeCentersOfMassSOA(&bodies);
 
         // C. Calcola le forze e aggiorna posizioni (SIMD + OMP)
-        updatePhysicsWithIndexVectorized(&bodies, my_start, my_end, root, theta, dt);
+        updatePhysicsWithIndexVectorized(&bodies, my_start, my_end, root, theta, dt, force_x, force_y, force_z);
 
         t1 = MPI_Wtime();
         total_cpu_time += t1 - t0;
@@ -126,6 +130,10 @@ int main(int argc, char** argv) {
         net_t1 = MPI_Wtime();
         total_net_time += (net_t1 - net_t0);
     }
+
+    free(force_x);
+    free(force_y);
+    free(force_z);
 
 
     long long cacheMissL1 = 0LL;

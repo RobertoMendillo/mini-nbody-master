@@ -1,11 +1,9 @@
-﻿//
+//
 // Created by Roberto on 24/09/2026.
 //
 
 #ifndef MINI_NBODY_MASTER_SUPPORT_FUNCTIONS_H
 #define MINI_NBODY_MASTER_SUPPORT_FUNCTIONS_H
-
-#endif //MINI_NBODY_MASTER_SUPPORT_FUNCTIONS_H
 
 #include <math.h>
 #include <stdio.h>
@@ -20,13 +18,13 @@ static void bodyForce(Body* p, float dt, int n, Body* localBuffer, int blocksize
 void randomizeBodies(Body* bodies, int n) {
     int i;
     for (i = 0; i < n; i++) {
-        bodies[i].x = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000;
-        bodies[i].y = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000;
-        bodies[i].z = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000;
-        bodies[i].vx = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000;
-        bodies[i].vy = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000;
-        bodies[i].vz = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000;
-        bodies[i].m = (rand() / (float)RAND_MAX) * 100;  // set mass to a positive number
+        bodies[i].x = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000.0f;
+        bodies[i].y = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000.0f;
+        bodies[i].z = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000.0f;
+        bodies[i].vx = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000.0f;
+        bodies[i].vy = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000.0f;
+        bodies[i].vz = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000.0f;
+        bodies[i].m = (rand() / (float)RAND_MAX) * 99.0f + 1.0f;  // set mass to a strictly positive number [1, 100]
     }
 }
 
@@ -82,5 +80,4 @@ void bodyForce(Body* p, float dt, int n, Body* localBuffer, int blocksize) {
     }
 }
 
-
-
+#endif //MINI_NBODY_MASTER_SUPPORT_FUNCTIONS_H

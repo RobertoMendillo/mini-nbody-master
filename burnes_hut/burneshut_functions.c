@@ -1,4 +1,4 @@
-﻿//
+//
 // Created by Roberto on 28/09/2026.
 //
 //
@@ -11,7 +11,9 @@
 #include "burneshut_functions.h"
 
 #include <math.h>
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -60,19 +62,7 @@ void initOctreePool(int numBodies) {
  * - pulisco il riferimento al body
  * - resetto l'id
  */
-void resetOctreePool() {
-    int i;
-    for (i = 0; i < pool->max_nodes; i++) {
-        OctreeNode* node = pool->nodes + i;
-        node->id = 0;
-        node->body = NULL;
-        int j;
-        for (j = 0; j < OCTREE_CHILDREN_SIZE; j++) {
-            node->children[j] = NULL;
-        }
-    }
-    pool->next_free = 0;
-}
+void resetOctreePool() { pool->next_free = 0; }
 
 /*
  * Preleva un OctreeNode dal pool.
@@ -80,13 +70,9 @@ void resetOctreePool() {
  *
  */
 OctreeNode* newOctreeNode() {
-    if (pool->next_free == pool->max_nodes - 1) {
-        pool->max_nodes *= 2;
-        pool->nodes = realloc(pool->nodes, pool->max_nodes * sizeof(OctreeNode));
-        if (pool->nodes == NULL) {
-            fprintf(stderr, "Errore di reallocazione per OctreePool\n");
-            exit(EXIT_FAILURE);
-        }
+    if (pool->next_free >= pool->max_nodes) {
+        fprintf(stderr, "Errore: capacita massima OctreePool (%d nodi) raggiunta\n", pool->max_nodes);
+        exit(EXIT_FAILURE);
     }
     OctreeNode* newNode = &pool->nodes[pool->next_free++];
     newNode->id = pool->next_free;
@@ -107,10 +93,14 @@ OctreeNode* newOctreeNode() {
  * Libera la memoria occupata dal OctreePool
  */
 void freeOctreePool() {
-    free(pool->nodes);
-    pool->nodes = NULL;
-    pool->max_nodes = 0;
-    pool->next_free = 0;
+    if (pool != NULL) {
+        free(pool->nodes);
+        pool->nodes = NULL;
+        pool->max_nodes = 0;
+        pool->next_free = 0;
+        free(pool);
+        pool = NULL;
+    }
 }
 
 /*
@@ -118,13 +108,7 @@ void freeOctreePool() {
  *
  */
 int checkIfNodeIsLeaf(OctreeNode* node) {
-    int children = 0;
-    int i;
-    for (i = 0; i < OCTREE_CHILDREN_SIZE; i++) {
-        if (node->children[i] != NULL) children++;
-    }
-
-    return children == 0;
+    return node->children[0] == NULL;
 }
 
 /*
@@ -145,58 +129,30 @@ void insertBody(OctreeNode* root, Body* body) {
                 body->x, body->y, body->z);
         return;
     }
-    int i;
 
-    OctreeNode* prevNode = root;
-    BoundingBox currentBbox = root->bbox;
-    int isLeaf = checkIfNodeIsLeaf(prevNode);
-#ifdef DEBUG
-    printf("Is leaf: %d\n", isLeaf);
-    printf("body:[%d,%.2f,%.2f,%.2f]\n", prevNode->id, body->x, body->y, body->z);
-#endif
+    OctreeNode* curr = root;
+    int depth = 0;
 
-    if (isLeaf) {
-        if (prevNode->body == NULL) {
-            prevNode->body = body;
-        } else {
+    while (depth < MAX_DEPTH) {
+        if (curr->children[0] == NULL) {
+            if (curr->body == NULL) {
+                curr->body = body;
+                return;
+            }
             // è già presente un body, quindi scomponiamo il nodo
-            divideNodeIntoOctree(prevNode);
-            // non è più una foglia
-            isLeaf = 0;
+            divideNodeIntoOctree(curr);
         }
-    }
 
-    OctreeNode* currentNode = NULL;
-    while (!isLeaf) {
-        // il nodo ha dei figli
-        for (i = 0; i < OCTREE_CHILDREN_SIZE; i++) {
-            currentNode = prevNode->children[i];
-            if (currentNode == NULL) {
-                continue;
-            }
-            currentBbox = currentNode->bbox;
+        float mid_x = 0.5f * (curr->bbox.min_x + curr->bbox.max_x);
+        float mid_y = 0.5f * (curr->bbox.min_y + curr->bbox.max_y);
+        float mid_z = 0.5f * (curr->bbox.min_z + curr->bbox.max_z);
 
-            int bodyShouldBeInsideNode = !checkBodyOutsideOfOctreeNode(currentNode, body);
+        int octant = ((body->x > mid_x) ? 4 : 0) |
+                     ((body->y > mid_y) ? 2 : 0) |
+                     ((body->z > mid_z) ? 1 : 0);
 
-            if (bodyShouldBeInsideNode) {
-                isLeaf = checkIfNodeIsLeaf(currentNode);
-                if (isLeaf) {
-                    if (currentNode->body != NULL) {
-                        divideNodeIntoOctree(currentNode);
-                        prevNode = currentNode;
-                        isLeaf = 0;
-                        break;
-                    } else {
-                        currentNode->body = body;
-                        isLeaf = 1;
-                        break;
-                    }
-                } else {
-                    prevNode = currentNode;
-                    break;
-                }
-            }
-        }
+        curr = curr->children[octant];
+        depth++;
     }
 }
 
@@ -417,6 +373,11 @@ void calculateForce(OctreeNode* root, Body* target, float theta, float* fx, floa
     float acc_y = 0.0f;
     float acc_z = 0.0f;
 
+    float tx = target->x;
+    float ty = target->y;
+    float tz = target->z;
+    float theta_sq = theta * theta;
+
     // Push della radice
     stack[stack_ptr++] = root;
 
@@ -427,31 +388,34 @@ void calculateForce(OctreeNode* root, Body* target, float theta, float* fx, floa
         // Se il nodo è vuoto o non ha massa, lo ignoriamo
         if (node == NULL || node->mass == 0.0f) continue;
 
+        int is_leaf = (node->children[0] == NULL);
+
         // Se il nodo è una foglia e contiene la particella stessa, saltiamo
         // (una particella non esercita gravità su se stessa)
-        if (checkIfNodeIsLeaf(node) && node->body == target) continue;
+        if (is_leaf && node->body == target) continue;
 
         // Calcolo delle distanze sui tre assi
-        float dx = node->cx - target->x;
-        float dy = node->cy - target->y;
-        float dz = node->cz - target->z;
+        float dx = node->cx - tx;
+        float dy = node->cy - ty;
+        float dz = node->cz - tz;
 
         // Distanza al quadrato con parametro SOFTENING per evitare div/0 o forze infinite
         float dist_sq = dx * dx + dy * dy + dz * dz + SOFTENING * SOFTENING;
-        float dist = sqrtf(dist_sq);
 
         // s: dimensione del nodo (supponendo nodi cubici, basta un solo asse)
         float s = node->bbox.max_x - node->bbox.min_x;
 
-        // Condizione Barnes-Hut
-        if (checkIfNodeIsLeaf(node) || (s / dist) < theta) {
+        // Condizione Barnes-Hut: (s / dist) < theta <==> (s * s) < (theta * theta * dist_sq)
+        if (is_leaf || (s * s) < (theta_sq * dist_sq)) {
             // Il nodo è abbastanza lontano (o è un corpo singolo).
             // Calcoliamo l'interazione con il suo centro di massa complessivo.
 
             // Accelerazione = G * M / d^2.
-            // Per trovare i vettori, dividiamo per 'dist' ottenendo (G * M / d^3)
+            // Per trovare i vettori, moltiplichiamo per inv_dist^3 ottenendo (G * M / d^3)
             // e moltiplichiamo poi per dx, dy, dz.
-            float a = (G * node->mass) / (dist_sq * dist);
+            float inv_dist = 1.0f / sqrtf(dist_sq);
+            float inv_dist3 = inv_dist * inv_dist * inv_dist;
+            float a = (G * node->mass) * inv_dist3;
 
             acc_x += a * dx;
             acc_y += a * dy;
@@ -472,10 +436,10 @@ void calculateForce(OctreeNode* root, Body* target, float theta, float* fx, floa
         }
     }
 
-    // F = m * a
-    *fx = target->m * acc_x;
-    *fy = target->m * acc_y;
-    *fz = target->m * acc_z;
+    // Restituiamo direttamente l'accelerazione (evitando * m e / m ridondanti)
+    *fx = acc_x;
+    *fy = acc_y;
+    *fz = acc_z;
 }
 
 /*
@@ -487,24 +451,19 @@ void updatePhysicsWithIndex(Body* bodies, int start_idx, int end_idx, OctreeNode
     if (root == NULL || bodies == NULL) return;
 
     int i;
-#pragma omp parallel for private(i)
+#pragma omp parallel for private(i) schedule(guided)
     for (i = start_idx; i < end_idx; i++) {
-        float fx = 0.0f, fy = 0.0f, fz = 0.0f;
+        float ax = 0.0f, ay = 0.0f, az = 0.0f;
 
-        // 1. Calcola la forza netta agente sulla particella i-esima
-        calculateForce(root, &bodies[i], theta, &fx, &fy, &fz);
+        // 1. Calcola l'accelerazione netta agente sulla particella i-esima
+        calculateForce(root, &bodies[i], theta, &ax, &ay, &az);
 
-        // 2. Ricava l'accelerazione (a = F / m)
-        float ax = fx / bodies[i].m;
-        float ay = fy / bodies[i].m;
-        float az = fz / bodies[i].m;
-
-        // 3. Aggiorna la velocità usando l'accelerazione corrente
+        // 2. Aggiorna la velocità usando l'accelerazione corrente
         bodies[i].vx += ax * dt;
         bodies[i].vy += ay * dt;
         bodies[i].vz += az * dt;
 
-        // 4. Aggiorna la posizione usando la NUOVA velocità (Eulero Simplettico)
+        // 3. Aggiorna la posizione usando la NUOVA velocità (Eulero Simplettico)
         bodies[i].x += bodies[i].vx * dt;
         bodies[i].y += bodies[i].vy * dt;
         bodies[i].z += bodies[i].vz * dt;
@@ -553,7 +512,7 @@ void calculateForceSOA(OctreeNodeSOA* root, BodiesSOA* bodies, int target_idx, f
     float tx = bodies->x[target_idx];
     float ty = bodies->y[target_idx];
     float tz = bodies->z[target_idx];
-    float tm = bodies->m[target_idx];
+    float theta_sq = theta * theta;
 
     // Push della radice
     stack[stack_ptr++] = root;
@@ -565,10 +524,12 @@ void calculateForceSOA(OctreeNodeSOA* root, BodiesSOA* bodies, int target_idx, f
         // Se il nodo è vuoto o non ha massa, lo ignoriamo
         if (node == NULL || node->mass == 0.0f) continue;
 
+        int is_leaf = (node->children[0] == NULL);
+
         // Se il nodo è una foglia e contiene la particella stessa, saltiamo
         // (una particella non esercita gravità su se stessa)
         // NOTA: Qui usiamo 'body_id' al posto del vecchio puntatore 'body'
-        if (checkIfNodeIsLeafSOA(node) && node->body_id == target_idx) continue;
+        if (is_leaf && node->body_id == target_idx) continue;
 
         // Calcolo delle distanze sui tre assi
         float dx = node->cx - tx;
@@ -577,20 +538,21 @@ void calculateForceSOA(OctreeNodeSOA* root, BodiesSOA* bodies, int target_idx, f
 
         // Distanza al quadrato con parametro SOFTENING per evitare div/0 o forze infinite
         float dist_sq = dx * dx + dy * dy + dz * dz + SOFTENING * SOFTENING;
-        float dist = sqrtf(dist_sq);
 
         // s: dimensione del nodo (supponendo nodi cubici, basta un solo asse)
         float s = node->bbox.max_x - node->bbox.min_x;
 
-        // Condizione Barnes-Hut
-        if (checkIfNodeIsLeafSOA(node) || (s / dist) < theta) {
+        // Condizione Barnes-Hut: (s / dist) < theta <==> (s * s) < (theta * theta * dist_sq)
+        if (is_leaf || (s * s) < (theta_sq * dist_sq)) {
             // Il nodo è abbastanza lontano (o è un corpo singolo).
             // Calcoliamo l'interazione con il suo centro di massa complessivo.
 
             // Accelerazione = G * M / d^2.
-            // Per trovare i vettori, dividiamo per 'dist' ottenendo (G * M / d^3)
+            // Per trovare i vettori, moltiplichiamo per inv_dist^3 ottenendo (G * M / d^3)
             // e moltiplichiamo poi per dx, dy, dz.
-            float a = (G * node->mass) / (dist_sq * dist);
+            float inv_dist = 1.0f / sqrtf(dist_sq);
+            float inv_dist3 = inv_dist * inv_dist * inv_dist;
+            float a = (G * node->mass) * inv_dist3;
 
             acc_x += a * dx;
             acc_y += a * dy;
@@ -611,14 +573,14 @@ void calculateForceSOA(OctreeNodeSOA* root, BodiesSOA* bodies, int target_idx, f
         }
     }
 
-    // F = m * a
-    *fx = tm * acc_x;
-    *fy = tm * acc_y;
-    *fz = tm * acc_z;
+    // Restituiamo direttamente l'accelerazione (evitando * m e / m ridondanti)
+    *fx = acc_x;
+    *fy = acc_y;
+    *fz = acc_z;
 }
 
 void updatePhysicsWithIndexVectorized(BodiesSOA* bodies, int start_idx, int end_idx, OctreeNodeSOA* root, float theta,
-                                      float dt, float *force_x, float *force_y, float *force_z) {
+                                      float dt, float* force_x, float* force_y, float* force_z) {
     if (root == NULL || bodies == NULL) return;
 
     int i;
@@ -626,13 +588,13 @@ void updatePhysicsWithIndexVectorized(BodiesSOA* bodies, int start_idx, int end_
     // 1. FASE DI CALCOLO FORZE (Multithreading sui rami dell'Octree)
 #pragma omp parallel for private(i) schedule(guided)
     for (i = start_idx; i < end_idx; i++) {
-        float fx = 0.0f, fy = 0.0f, fz = 0.0f;
-        calculateForceSOA(root, bodies, i, theta, &fx, &fy, &fz);
+        float ax = 0.0f, ay = 0.0f, az = 0.0f;
+        calculateForceSOA(root, bodies, i, theta, &ax, &ay, &az);
 
         int idx = i - start_idx;
-        force_x[idx] = fx;
-        force_y[idx] = fy;
-        force_z[idx] = fz;
+        force_x[idx] = ax;
+        force_y[idx] = ay;
+        force_z[idx] = az;
     }
 
     // 2. FASE DI INTEGRAZIONE (Multithreading + SIMD Vettorializzato)
@@ -640,10 +602,9 @@ void updatePhysicsWithIndexVectorized(BodiesSOA* bodies, int start_idx, int end_
     for (i = start_idx; i < end_idx; i++) {
         int idx = i - start_idx;
 
-        float inv_m = 1.0f / bodies->m[i];
-        float ax = force_x[idx] * inv_m;
-        float ay = force_y[idx] * inv_m;
-        float az = force_z[idx] * inv_m;
+        float ax = force_x[idx];
+        float ay = force_y[idx];
+        float az = force_z[idx];
 
         bodies->vx[i] += ax * dt;
         bodies->vy[i] += ay * dt;
@@ -667,27 +628,13 @@ void initOctreePoolSOA(int numBodies) {
 }
 
 void resetOctreePoolSOA() {
-    int i;
-    for (i = 0; i < pool_soa_max_nodes; i++) {
-        OctreeNodeSOA* node = &pool_soa_nodes[i];
-        node->id = 0;
-        node->body_id = -1;  // -1 indica che non c'è nessun body
-        int j;
-        for (j = 0; j < OCTREE_CHILDREN_SIZE; j++) {
-            node->children[j] = NULL;
-        }
-    }
     pool_soa_next_free = 0;
 }
 
 OctreeNodeSOA* newOctreeNodeSOA() {
-    if (pool_soa_next_free >= pool_soa_max_nodes - 1) {
-        pool_soa_max_nodes *= 2;
-        pool_soa_nodes = (OctreeNodeSOA*)realloc(pool_soa_nodes, pool_soa_max_nodes * sizeof(OctreeNodeSOA));
-        if (pool_soa_nodes == NULL) {
-            fprintf(stderr, "Errore di reallocazione per OctreePoolSOA\n");
-            exit(EXIT_FAILURE);
-        }
+    if (pool_soa_next_free >= pool_soa_max_nodes) {
+        fprintf(stderr, "Errore: capacita massima OctreePoolSOA (%d nodi) raggiunta\n", pool_soa_max_nodes);
+        exit(EXIT_FAILURE);
     }
     OctreeNodeSOA* newNode = &pool_soa_nodes[pool_soa_next_free++];
     newNode->id = pool_soa_next_free;
@@ -704,11 +651,7 @@ OctreeNodeSOA* newOctreeNodeSOA() {
 }
 
 int checkIfNodeIsLeafSOA(OctreeNodeSOA* node) {
-    int i;
-    for (i = 0; i < OCTREE_CHILDREN_SIZE; i++) {
-        if (node->children[i] != NULL) return 0;  // Falso, ha figli
-    }
-    return 1;  // Vero, è una foglia
+    return node->children[0] == NULL;
 }
 
 int checkBodyOutsideOfOctreeNodeSOA(OctreeNodeSOA* node, BodiesSOA* bodies, int body_idx) {
@@ -762,43 +705,32 @@ void divideNodeIntoOctreeSOA(OctreeNodeSOA* node, BodiesSOA* bodies) {
 void insertBodySOA(OctreeNodeSOA* root, BodiesSOA* bodies, int body_idx) {
     if (checkBodyOutsideOfOctreeNodeSOA(root, bodies, body_idx)) return;
 
-    OctreeNodeSOA* prevNode = root;
-    int isLeaf = checkIfNodeIsLeafSOA(prevNode);
+    float bx = bodies->x[body_idx];
+    float by = bodies->y[body_idx];
+    float bz = bodies->z[body_idx];
 
-    if (isLeaf) {
-        if (prevNode->body_id == -1) {
-            prevNode->body_id = body_idx;
-        } else {
-            divideNodeIntoOctreeSOA(prevNode, bodies);
-            isLeaf = 0;
-        }
-    }
+    OctreeNodeSOA* curr = root;
+    int depth = 0;
 
-    while (!isLeaf) {
-        int i;
-        for (i = 0; i < OCTREE_CHILDREN_SIZE; i++) {
-            OctreeNodeSOA* currentNode = prevNode->children[i];
-            if (currentNode == NULL) continue;
-
-            if (!checkBodyOutsideOfOctreeNodeSOA(currentNode, bodies, body_idx)) {
-                isLeaf = checkIfNodeIsLeafSOA(currentNode);
-                if (isLeaf) {
-                    if (currentNode->body_id != -1) {
-                        divideNodeIntoOctreeSOA(currentNode, bodies);
-                        prevNode = currentNode;
-                        isLeaf = 0;
-                        break;
-                    } else {
-                        currentNode->body_id = body_idx;
-                        isLeaf = 1;
-                        break;  // Inserimento completato
-                    }
-                } else {
-                    prevNode = currentNode;
-                    break;  // Scende di un livello
-                }
+    while (depth < MAX_DEPTH) {
+        if (curr->children[0] == NULL) {
+            if (curr->body_id == -1) {
+                curr->body_id = body_idx;
+                return;
             }
+            divideNodeIntoOctreeSOA(curr, bodies);
         }
+
+        float mid_x = 0.5f * (curr->bbox.min_x + curr->bbox.max_x);
+        float mid_y = 0.5f * (curr->bbox.min_y + curr->bbox.max_y);
+        float mid_z = 0.5f * (curr->bbox.min_z + curr->bbox.max_z);
+
+        int octant = ((bx > mid_x) ? 4 : 0) |
+                     ((by > mid_y) ? 2 : 0) |
+                     ((bz > mid_z) ? 1 : 0);
+
+        curr = curr->children[octant];
+        depth++;
     }
 }
 
@@ -885,18 +817,14 @@ void randomizeBodiesSOA(BodiesSOA* bodies, int numBodies) {
 
     int i;
     for (i = 0; i < numBodies; i++) {
-        // Genera posizioni casuali in un volume (es. tra -100.0 e 100.0)
-        bodies->x[i] = 200.0f * ((float)rand() / RAND_MAX) - 100.0f;
-        bodies->y[i] = 200.0f * ((float)rand() / RAND_MAX) - 100.0f;
-        bodies->z[i] = 200.0f * ((float)rand() / RAND_MAX) - 100.0f;
-
-        // Inizializza le velocità a zero per l'istante iniziale
-        bodies->vx[i] = 0.0f;
-        bodies->vy[i] = 0.0f;
-        bodies->vz[i] = 0.0f;
-
-        // Assegna una massa casuale strettamente positiva (es. tra 1.0 e 10.0)
-        bodies->m[i] = 9.0f * ((float)rand() / RAND_MAX) + 1.0f;
+        // Genera posizioni, velocità e masse con la stessa distribuzione di randomizeBodies (AoS)
+        bodies->x[i] = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000.0f;
+        bodies->y[i] = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000.0f;
+        bodies->z[i] = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000.0f;
+        bodies->vx[i] = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000.0f;
+        bodies->vy[i] = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000.0f;
+        bodies->vz[i] = (2.0f * (rand() / (float)RAND_MAX) - 1.0f) * 1000.0f;
+        bodies->m[i] = (rand() / (float)RAND_MAX) * 99.0f + 1.0f;
     }
 }
 

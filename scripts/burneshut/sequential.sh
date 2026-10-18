@@ -1,9 +1,9 @@
 #!/bin/bash
 OUTPUT_FILE="burnes_hut/results/results.data"
-MACHINEFILE="machinefile.txt"
+MACHINEFILE="machinefile_p.txt"
 
 # Inizializza il file CSV
-printf "bodies,total_time,cache_miss_L1,cache_miss_L2\n" > $OUTPUT_FILE
+printf "bodies,total_time,cache_miss_L1,cache_miss_L2\n" > "$OUTPUT_FILE"
 
 # Compilazione
 echo "Compilazione in corso..."
@@ -14,8 +14,8 @@ echo "Compilazione completata. Inizio benchmark."
 BODIES=(10000 20000 40000 60000 80000 100000 200000 400000 600000 800000 1000000 1200000 1400000)
 
 for size in "${BODIES[@]}"; do
-  echo "Esecuzione simulazione per $size corpi..."
-mpirun -np 1 -machinefile $MACHINEFILE burnes_hut/sequential/nbody.out "$size" >> $OUTPUT_FILE 2>&1
+    echo "Esecuzione simulazione per $size corpi..."
+    mpirun -np 1 -machinefile "$MACHINEFILE" burnes_hut/sequential/nbody.out "$size" >> "$OUTPUT_FILE"
 done
 
 echo "Benchmark completato! Risultati salvati in $OUTPUT_FILE"

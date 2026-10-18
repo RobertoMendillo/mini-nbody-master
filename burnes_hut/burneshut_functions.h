@@ -1,10 +1,9 @@
-﻿//
+//
 // Created by Roberto on 26/09/2026.
 //
 
 #ifndef MINI_NBODY_MASTER_BURNESHUT_FUNCTIONS_H
 #define MINI_NBODY_MASTER_BURNESHUT_FUNCTIONS_H
-#endif  // MINI_NBODY_MASTER_BURNESHUT_FUNCTIONS_H
 
 #include "data_structures.h"
 
@@ -34,7 +33,7 @@ void updatePhysics(Body* bodies, int numBodies, OctreeNode* root, float theta, f
 
 
 // SOA
-void initOctreePoolSOA();
+void initOctreePoolSOA(int numBodies);
 void resetOctreePoolSOA();
 void randomizeBodiesSOA(BodiesSOA* bodies, int numBodies);
 OctreeNodeSOA* newOctreeNodeSOA();
@@ -51,3 +50,5 @@ void freeOctreePoolSOA();
 void freeBodiesSOA(BodiesSOA* bodies);
 void updatePhysicsWithIndexVectorized(BodiesSOA* bodies, int start_idx, int end_idx, OctreeNodeSOA* root, float theta,
                                       float dt, float *force_x, float *force_y, float *force_z);
+
+#endif  // MINI_NBODY_MASTER_BURNESHUT_FUNCTIONS_H
