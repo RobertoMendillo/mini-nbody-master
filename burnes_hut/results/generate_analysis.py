@@ -1,238 +1,449 @@
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-# 1. Definizione intestazioni corrette
-headers_seq = ['bodies', 'total_time', 'cache_miss_L1', 'cache_miss_L2']
-headers_par = ['network', 'bodies', 'cpu_time', 'net_time', 'cache_miss_L1', 'cache_miss_L2']
+BASE_DIR = Path(__file__).resolve().parent
 
-# 2. Caricamento Dati
-df_seq = pd.read_csv('../../results/results.data')
-df_par = pd.read_csv('results_parallel.data', skiprows=1, names=headers_par, skipinitialspace=True)
-df_soa = pd.read_csv('results_parallel_soa.data', skiprows=1, names=headers_par, skipinitialspace=True)
-
-df_par['network'] = df_par['network'].str.strip()
-df_soa['network'] = df_soa['network'].str.strip()
-
-# Calcolo del tempo totale per i dataset paralleli
-df_par['total_time'] = df_par['cpu_time'] + df_par['net_time']
-df_soa['total_time'] = df_soa['cpu_time'] + df_soa['net_time']
-
-df_par = df_par[df_par['total_time'] > 0].copy()
-df_soa = df_soa[df_soa['total_time'] > 0].copy()
-
-df_seq_mean = df_seq.groupby('bodies')['total_time'].mean().reset_index().rename(columns={'total_time': 't_seq'})
+# Tempo sequenziale di riferimento (1 core) per N = 1.000.000
+T_SEQ_1M = 337.75
 
 
-def compute_speedup(df_parallel, df_sequential, network_name):
-    filtered = df_parallel[df_parallel['network'] == network_name].copy()
-    mean_par = filtered.groupby('bodies')[['total_time', 'net_time', 'cpu_time']].mean().reset_index()
-    merged = pd.merge(mean_par, df_sequential[['bodies', 't_seq']], on='bodies')
-    merged['speedup'] = merged['t_seq'] / merged['total_time']
-    merged['comp_time'] = merged['cpu_time']  # comp_time corrisponde al cpu_time
-    merged['net_ratio_%'] = (merged['net_time'] / merged['total_time']) * 100
-    return merged
+def load_scaling_csv(csv_path: Path) -> pd.DataFrame:
+    df = pd.read_csv(csv_path, skipinitialspace=True)
+    df["Total_Time"] = df["CPU_Time"] + df["Net_Time"]
+    return df
 
 
-# Calcolo per Native InfiniBand
-speedup_aos_native = compute_speedup(df_par, df_seq_mean, 'native/infiniband')
-speedup_soa_native = compute_speedup(df_soa, df_seq_mean, 'native/infiniband')
+def analyze_strong_scaling(csv_path: Path, output_path: Path, title_suffix: str = "", t_seq: float = T_SEQ_1M) -> pd.DataFrame:
+    df = load_scaling_csv(csv_path)
 
-# Tabella Native InfiniBand
-summary_native = pd.merge(
-    speedup_aos_native[['bodies', 't_seq', 'total_time', 'speedup']],
-    speedup_soa_native[['bodies', 'total_time', 'speedup']],
-    on='bodies',
-    suffixes=('_AoS', '_SoA'),
-    how='outer'
-).sort_values('bodies')
-summary_native.columns = ['Bodies (N)', 'T_Seq (s)', 'T_AoS (s)', 'Speedup AoS', 'T_SoA (s)', 'Speedup SoA']
-summary_native['Speedup SoA/AoS'] = summary_native['T_AoS (s)'] / summary_native['T_SoA (s)']
+    # Speedup rispetto al tempo sequenziale (1 core): S_p = T_seq / T_p
+    df["Speedup_CPU"] = t_seq / df["CPU_Time"]
+    df["Speedup_Total"] = t_seq / df["Total_Time"]
 
-# --- GRAFICO 1: TEMPI ED ESECUZIONE + SPEEDUP (NATIVE INFINIBAND) ---
-plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'default')
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    # Efficienza parallela assoluta (%): E_p = T_seq / (p * T_p) * 100
+    df["Efficiency_CPU"] = (df["Speedup_CPU"] / df["Total_Cores"]) * 100.0
+    df["Efficiency_Total"] = (df["Speedup_Total"] / df["Total_Cores"]) * 100.0
 
-ax1.plot(df_seq_mean['bodies'], df_seq_mean['t_seq'], 'o:', color='#1f77b4', linewidth=2.2, markersize=6,
-         label='Sequenziale Base')
-ax1.plot(speedup_aos_native['bodies'], speedup_aos_native['total_time'], 's-', color='#ff7f0e', linewidth=2.2,
-         markersize=6, label='Parallelo (AoS)')
-ax1.plot(speedup_soa_native['bodies'], speedup_soa_native['total_time'], '^-', color='#2ca02c', linewidth=2.2,
-         markersize=6, label='Parallelo (SoA)')
+    suffix_str = f" ({title_suffix})" if title_suffix else ""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5), dpi=120)
 
-ax1.set_yscale('log')
-ax1.set_title('Tempo Totale di Esecuzione (Native InfiniBand)', fontsize=13, fontweight='bold', pad=22)
-ax1.set_xlabel('Numero di Corpi (N)', fontsize=11)
-ax1.set_ylabel('Tempo di Esecuzione [s] (scala logaritmica)', fontsize=11)
-ax1.grid(True, which='both', linestyle='--', alpha=0.5)
-ax1.legend(fontsize=10, loc='upper left')
+    # 1. Grafico Speedup
+    ax1.plot(
+        df["Total_Cores"],
+        df["Speedup_Total"],
+        marker="s",
+        linewidth=2.2,
+        color="#ff7f0e",
+        label="Speedup Totale (CPU+Net)",
+    )
+    ax1.plot(
+        df["Total_Cores"],
+        df["Speedup_CPU"],
+        marker="o",
+        linewidth=1.8,
+        linestyle=":",
+        color="#1f77b4",
+        label="Speedup Solo CPU",
+    )
+    ax1.plot(
+        df["Total_Cores"],
+        df["Total_Cores"],
+        linestyle="--",
+        color="gray",
+        alpha=0.8,
+        label="Speedup Ideale ($S_p = p$)",
+    )
 
-ax2.axhline(1.0, color='gray', linestyle='--', linewidth=1.5, label='Baseline Sequenziale (1.0x)')
-ax2.plot(speedup_aos_native['bodies'], speedup_aos_native['speedup'], 's-', color='#ff7f0e', linewidth=2.5,
-         markersize=7, label='Speedup AoS')
-ax2.plot(speedup_soa_native['bodies'], speedup_soa_native['speedup'], '^-', color='#2ca02c', linewidth=2.5,
-         markersize=7, label='Speedup SoA')
+    ax1.set_title(f"Strong Scaling: Speedup vs Core Totali{suffix_str}", fontsize=13, fontweight="bold")
+    ax1.set_xlabel("Numero di Core Totali ($p$)", fontsize=11)
+    ax1.set_ylabel("Speedup ($T_{seq} / T_p$)", fontsize=11)
+    ax1.set_xticks(df["Total_Cores"])
+    ax1.grid(True, linestyle=":", alpha=0.6)
+    ax1.legend(frameon=True)
 
-max_speedup_val = max(speedup_aos_native['speedup'].max(), speedup_soa_native['speedup'].max())
-ax2.set_ylim(0, max_speedup_val * 1.30)
+    # 2. Grafico Efficienza Parallela
+    ax2.plot(
+        df["Total_Cores"],
+        df["Efficiency_Total"],
+        marker="s",
+        linewidth=2.2,
+        color="#ff7f0e",
+        label="Efficienza Totale (%)",
+    )
+    ax2.plot(
+        df["Total_Cores"],
+        df["Efficiency_CPU"],
+        marker="o",
+        linewidth=1.8,
+        linestyle=":",
+        color="#1f77b4",
+        label="Efficienza Solo CPU (%)",
+    )
+    ax2.axhline(
+        100.0,
+        linestyle="--",
+        color="gray",
+        alpha=0.8,
+        label="Efficienza Ideale (100%)",
+    )
 
-max_aos = speedup_aos_native.loc[speedup_aos_native['speedup'].idxmax()]
-max_soa = speedup_soa_native.loc[speedup_soa_native['speedup'].idxmax()]
+    ax2.set_title(f"Strong Scaling: Efficienza Parallela Assoluta{suffix_str}", fontsize=13, fontweight="bold")
+    ax2.set_xlabel("Numero di Core Totali ($p$)", fontsize=11)
+    ax2.set_ylabel("Efficienza (%) [ $T_{seq} / (p \\cdot T_p)$ ]", fontsize=11)
+    ax2.set_ylim(0, max(110.0, df["Efficiency_CPU"].max() + 10.0))
+    ax2.set_xticks(df["Total_Cores"])
+    ax2.grid(True, linestyle=":", alpha=0.6)
+    ax2.legend(frameon=True)
 
-ax2.scatter([max_aos['bodies']], [max_aos['speedup']], color='#d62728', s=75, zorder=5)
-ax2.scatter([max_soa['bodies']], [max_soa['speedup']], color='#d62728', s=75, zorder=5)
+    plt.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, dpi=300)
+    plt.close()
 
-ax2.annotate(f"Max SoA: {max_soa['speedup']:.2f}x\n(N={int(max_soa['bodies']):,})",
-             xy=(max_soa['bodies'], max_soa['speedup']),
-             xytext=(-140, 20),
-             textcoords="offset points",
-             arrowprops=dict(arrowstyle='->', color='#2ca02c', lw=1.6),
-             fontsize=9.5, fontweight='semibold',
-             bbox=dict(boxstyle='round,pad=0.4', facecolor='#eafaf1', edgecolor='#2ca02c', alpha=0.95))
+    return df
 
-ax2.annotate(f"Max AoS: {max_aos['speedup']:.2f}x\n(N={int(max_aos['bodies']):,})",
-             xy=(max_aos['bodies'], max_aos['speedup']),
-             xytext=(-140, -48),
-             textcoords="offset points",
-             arrowprops=dict(arrowstyle='->', color='#ff7f0e', lw=1.6),
-             fontsize=9.5, fontweight='semibold',
-             bbox=dict(boxstyle='round,pad=0.4', facecolor='#fff3e6', edgecolor='#ff7f0e', alpha=0.95))
 
-ax2.set_title('Speedup vs Sequenziale (Native InfiniBand)', fontsize=13, fontweight='bold', pad=22)
-ax2.set_xlabel('Numero di Corpi (N)', fontsize=11)
-ax2.set_ylabel('Speedup (Sp = T_seq / T_par)', fontsize=11)
-ax2.grid(True, linestyle='--', alpha=0.5)
-ax2.legend(fontsize=10, loc='lower right')
+def analyze_strong_scaling_comparison(aos_csv: Path, soa_csv: Path, output_path: Path, t_seq: float = T_SEQ_1M) -> None:
+    df_aos = load_scaling_csv(aos_csv)
+    df_soa = load_scaling_csv(soa_csv)
 
-plt.tight_layout()
-plt.savefig('speedup_native_infiniband.png', dpi=300)
-plt.close()
+    for df in (df_aos, df_soa):
+        df["Speedup_Total"] = t_seq / df["Total_Time"]
+        df["Efficiency_Total"] = (df["Speedup_Total"] / df["Total_Cores"]) * 100.0
 
-# --- GRAFICO 2: CONFRONTO RETI ---
-networks = ['native/infiniband', 'tcpip/infiniband', 'tcpip/ethernet']
-labels = ['Native InfiniBand', 'TCP/IP InfiniBand', 'TCP/IP Ethernet (1GbE)']
-colors = ['#2ca02c', '#1f77b4', '#d62728']
-markers = ['^', 's', 'o']
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5), dpi=120)
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    # 1. Confronto Speedup AoS vs SoA
+    ax1.plot(
+        df_aos["Total_Cores"],
+        df_aos["Speedup_Total"],
+        marker="s",
+        linewidth=2.2,
+        color="#ff7f0e",
+        label="Speedup AoS (CPU+Net)",
+    )
+    ax1.plot(
+        df_soa["Total_Cores"],
+        df_soa["Speedup_Total"],
+        marker="^",
+        linewidth=2.2,
+        color="#2ca02c",
+        label="Speedup SoA (CPU+Net)",
+    )
+    ax1.plot(
+        df_aos["Total_Cores"],
+        df_aos["Total_Cores"],
+        linestyle="--",
+        color="gray",
+        alpha=0.8,
+        label="Speedup Ideale ($S_p = p$)",
+    )
 
-for ax, mode_name, df_data in zip([ax1, ax2], ['AoS (Array of Structures)', 'SoA (Structure of Arrays)'],
-                                  [df_par, df_soa]):
-    ax.axhline(1.0, color='gray', linestyle='--', linewidth=1.5, label='Baseline Sequenziale (1.0x)')
-    for net, label, col, mk in zip(networks, labels, colors, markers):
-        res = compute_speedup(df_data, df_seq_mean, net)
-        if not res.empty:
-            ax.plot(res['bodies'], res['speedup'], marker=mk, linewidth=2.2, markersize=6, color=col, label=label)
+    ax1.set_title("Strong Scaling: Confronto Speedup (AoS vs SoA)", fontsize=13, fontweight="bold")
+    ax1.set_xlabel("Numero di Core Totali ($p$)", fontsize=11)
+    ax1.set_ylabel("Speedup ($T_{seq} / T_p$)", fontsize=11)
+    ax1.set_xticks(df_aos["Total_Cores"])
+    ax1.grid(True, linestyle=":", alpha=0.6)
+    ax1.legend(frameon=True)
 
-    ax.set_title(f'Speedup per Rete - {mode_name}', fontsize=13, fontweight='bold', pad=18)
-    ax.set_xlabel('Numero di Corpi (N)', fontsize=11)
-    ax.set_ylabel('Speedup (Sp = T_seq / T_par)', fontsize=11)
-    ax.grid(True, linestyle='--', alpha=0.5)
-    ax.legend(fontsize=10, loc='center left' if 'AoS' in mode_name else 'upper left')
+    # 2. Confronto Efficienza AoS vs SoA
+    ax2.plot(
+        df_aos["Total_Cores"],
+        df_aos["Efficiency_Total"],
+        marker="s",
+        linewidth=2.2,
+        color="#ff7f0e",
+        label="Efficienza AoS (%)",
+    )
+    ax2.plot(
+        df_soa["Total_Cores"],
+        df_soa["Efficiency_Total"],
+        marker="^",
+        linewidth=2.2,
+        color="#2ca02c",
+        label="Efficienza SoA (%)",
+    )
+    ax2.axhline(
+        100.0,
+        linestyle="--",
+        color="gray",
+        alpha=0.8,
+        label="Efficienza Ideale (100%)",
+    )
 
-plt.tight_layout()
-plt.savefig('speedup_networks_comparison.png', dpi=300)
-plt.close()
+    max_eff = max(df_aos["Efficiency_Total"].max(), df_soa["Efficiency_Total"].max())
+    ax2.set_title("Strong Scaling: Confronto Efficienza (AoS vs SoA)", fontsize=13, fontweight="bold")
+    ax2.set_xlabel("Numero di Core Totali ($p$)", fontsize=11)
+    ax2.set_ylabel("Efficienza (%) [ $T_{seq} / (p \\cdot T_p)$ ]", fontsize=11)
+    ax2.set_ylim(0, max(110.0, max_eff + 10.0))
+    ax2.set_xticks(df_aos["Total_Cores"])
+    ax2.grid(True, linestyle=":", alpha=0.6)
+    ax2.legend(frameon=True)
 
-# --- GRAFICO 3: SoA vs AoS e OVERHEAD COMUNICAZIONE ---
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    plt.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, dpi=300)
+    plt.close()
 
-valid_comp = summary_native.dropna(subset=['Speedup SoA/AoS']).copy()
-ax1.axhline(1.0, color='gray', linestyle='--', linewidth=1.5, label='Parità di Prestazioni (1.0x)')
-ax1.plot(valid_comp['Bodies (N)'], valid_comp['Speedup SoA/AoS'], 'D-', color='#9467bd', linewidth=2.5, markersize=7,
-         label='Rapporto T_AoS / T_SoA')
 
-ax1.fill_between(valid_comp['Bodies (N)'], 1.0, valid_comp['Speedup SoA/AoS'],
-                 where=(valid_comp['Speedup SoA/AoS'] >= 1.0), color='#2ca02c', alpha=0.2,
-                 label='Regione SoA più efficiente')
-ax1.fill_between(valid_comp['Bodies (N)'], 1.0, valid_comp['Speedup SoA/AoS'],
-                 where=(valid_comp['Speedup SoA/AoS'] < 1.0), color='#ff7f0e', alpha=0.2,
-                 label='Regione AoS più efficiente')
+def analyze_weak_scaling(csv_path: Path, output_path: Path) -> pd.DataFrame:
+    df = load_scaling_csv(csv_path)
 
-ax1.set_title('Speedup Relativo: SoA vs AoS (Native InfiniBand)', fontsize=13, fontweight='bold', pad=18)
-ax1.set_xlabel('Numero di Corpi (N)', fontsize=11)
-ax1.set_ylabel('Rapporto di Speedup (T_AoS / T_SoA)', fontsize=11)
-ax1.grid(True, linestyle='--', alpha=0.5)
-ax1.legend(fontsize=10, loc='lower right')
+    # Baseline alla configurazione minima (p_0 = 4 core, N_0 = 100.000 corpi)
+    base_row = df.iloc[0]
+    p0 = float(base_row["Total_Cores"])
+    n0 = float(base_row["NumBodies"])
+    t0_total = float(base_row["Total_Time"])
+    t0_cpu = float(base_row["CPU_Time"])
 
-for net, label, col, mk in zip(networks, labels, colors, markers):
-    res_net = compute_speedup(df_par, df_seq_mean, net)
-    if not res_net.empty:
-        ax2.plot(res_net['bodies'], res_net['net_ratio_%'], marker=mk, linewidth=2.2, markersize=6, color=col,
-                 label=label)
+    # Fattore teorico O(N log2 N) per core al crescere di N: log2(N) / log2(N_0)
+    log_factor = np.log2(df["NumBodies"]) / np.log2(n0)
 
-ax2.set_title('Incidenza della Comunicazione di Rete (% su Tempo Totale)', fontsize=13, fontweight='bold', pad=18)
-ax2.set_xlabel('Numero di Corpi (N)', fontsize=11)
-ax2.set_ylabel('% Tempo Comunicazione (T_net / T_total * 100)', fontsize=11)
-ax2.grid(True, linestyle='--', alpha=0.5)
-ax2.legend(fontsize=10, loc='center right')
+    # Efficienza Weak Scaling rispetto alla baseline a p_0 core: E_weak(p) = (T_0 / T_p) * 100
+    df["Efficiency_Weak_Total"] = (t0_total / df["Total_Time"]) * 100.0
+    df["Efficiency_Weak_CPU"] = (t0_cpu / df["CPU_Time"]) * 100.0
+    df["Efficiency_Weak_NlogN"] = df["Efficiency_Weak_Total"] * log_factor
 
-plt.tight_layout()
-plt.savefig('soa_vs_aos_and_network_overhead.png', dpi=300)
-plt.close()
+    # Speedup Scalato (Gustafson) riferito a p core: S_scaled(p) = p * (T_0 / T_p)
+    df["Scaled_Speedup_Total"] = df["Total_Cores"] * (t0_total / df["Total_Time"])
+    df["Scaled_Speedup_NlogN"] = df["Scaled_Speedup_Total"] * log_factor
 
-# --- GRAFICO 4: VERDETTO TRA LE 3 RETI ---
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5), dpi=120)
 
-net_names = ['Native InfiniBand\n(RDMA / Verbs)', 'TCP/IP InfiniBand\n(IP-over-IB)', 'TCP/IP Ethernet\n(1GbE)']
-colors_palette = ['#2ca02c', '#1f77b4', '#d62728']
+    # 1. Grafico Scaled Speedup (Weak Scaling)
+    ax1.plot(
+        df["Total_Cores"],
+        df["Scaled_Speedup_Total"],
+        marker="s",
+        linewidth=2.2,
+        color="#ff7f0e",
+        label="Speedup Scalato ($p \\cdot T_{p_0} / T_p$)",
+    )
+    ax1.plot(
+        df["Total_Cores"],
+        df["Scaled_Speedup_NlogN"],
+        marker="o",
+        linewidth=1.8,
+        linestyle=":",
+        color="#2ca02c",
+        label="Speedup Normalizzato $O(N \\log N)$",
+    )
+    ax1.plot(
+        df["Total_Cores"],
+        df["Total_Cores"],
+        linestyle="--",
+        color="gray",
+        alpha=0.8,
+        label="Scaling Ideale ($S_p = p$)",
+    )
 
-max_aos_vals = [
-    compute_speedup(df_par, df_seq_mean, 'native/infiniband')['speedup'].max(),
-    compute_speedup(df_par, df_seq_mean, 'tcpip/infiniband')['speedup'].max(),
-    compute_speedup(df_par, df_seq_mean, 'tcpip/ethernet')['speedup'].max()
-]
-max_soa_vals = [
-    compute_speedup(df_soa, df_seq_mean, 'native/infiniband')['speedup'].max(),
-    compute_speedup(df_soa, df_seq_mean, 'tcpip/infiniband')['speedup'].max(),
-    compute_speedup(df_soa, df_seq_mean, 'tcpip/ethernet')['speedup'].max()
-]
+    ax1.set_title("Weak Scaling: Speedup Scalato (25k corpi/core)", fontsize=13, fontweight="bold")
+    ax1.set_xlabel("Numero di Core Totali ($p$, con $N = 25\\text{k} \\cdot p$)", fontsize=11)
+    ax1.set_ylabel("Speedup Scalato", fontsize=11)
+    ax1.set_xticks(df["Total_Cores"])
+    ax1.grid(True, linestyle=":", alpha=0.6)
+    ax1.legend(frameon=True)
 
-x_pos = np.arange(len(net_names))
-bar_w = 0.35
+    # 2. Grafico Efficienza Weak Scaling
+    ax2.plot(
+        df["Total_Cores"],
+        df["Efficiency_Weak_Total"],
+        marker="s",
+        linewidth=2.2,
+        color="#ff7f0e",
+        label="Efficienza Weak Totale ($T_{p_0} / T_p$)",
+    )
+    ax2.plot(
+        df["Total_Cores"],
+        df["Efficiency_Weak_NlogN"],
+        marker="o",
+        linewidth=1.8,
+        linestyle=":",
+        color="#2ca02c",
+        label="Efficienza Corretta $O(N \\log N)$",
+    )
+    ax2.axhline(
+        100.0,
+        linestyle="--",
+        color="gray",
+        alpha=0.8,
+        label=f"Efficienza Ideale (100% a $p_0={int(p0)}$)",
+    )
 
-r1 = ax1.bar(x_pos - bar_w / 2, max_aos_vals, bar_w, label='AoS (Array of Structures)', color='#ff7f0e',
-             edgecolor='#333333', linewidth=0.8)
-r2 = ax1.bar(x_pos + bar_w / 2, max_soa_vals, bar_w, label='SoA (Structure of Arrays)', color='#2ca02c',
-             edgecolor='#333333', linewidth=0.8)
-ax1.axhline(1.0, color='#d62728', linestyle='--', linewidth=1.5, label='Baseline Sequenziale (1.0x)')
+    ax2.set_title("Weak Scaling: Efficienza Parallela (%)", fontsize=13, fontweight="bold")
+    ax2.set_xlabel("Numero di Core Totali ($p$, con $N = 25\\text{k} \\cdot p$)", fontsize=11)
+    ax2.set_ylabel("Efficienza Weak (%) [ $T_{p_0} / T_p \\cdot 100$ ]", fontsize=11)
+    ax2.set_ylim(0, 115.0)
+    ax2.set_xticks(df["Total_Cores"])
+    ax2.grid(True, linestyle=":", alpha=0.6)
+    ax2.legend(frameon=True)
 
-ax1.set_ylabel('Speedup Massimo Raggiunto', fontsize=12)
-ax1.set_title('Verdetto: Picco Massimo di Speedup per Rete', fontsize=13, fontweight='bold', pad=18)
-ax1.set_xticks(x_pos)
-ax1.set_xticklabels(net_names, fontsize=10.5)
-ax1.set_ylim(0, max(max_aos_vals) + 5)
-ax1.grid(True, linestyle='--', alpha=0.5, axis='y')
-ax1.legend(fontsize=10, loc='upper left')
+    plt.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, dpi=300)
+    plt.close()
 
-for r in r1:
-    h = r.get_height()
-    ax1.annotate(f'{h:.2f}x', xy=(r.get_x() + r.get_width() / 2, h), xytext=(0, 4),
-                 textcoords="offset points", ha='center', va='bottom', fontsize=10, fontweight='bold')
-for r in r2:
-    h = r.get_height()
-    ax1.annotate(f'{h:.2f}x', xy=(r.get_x() + r.get_width() / 2, h), xytext=(0, 4),
-                 textcoords="offset points", ha='center', va='bottom', fontsize=10, fontweight='bold')
+    return df
 
-avg_overhead = [
-    compute_speedup(df_par, df_seq_mean, 'native/infiniband')['net_ratio_%'].mean(),
-    compute_speedup(df_par, df_seq_mean, 'tcpip/infiniband')['net_ratio_%'].mean(),
-    compute_speedup(df_par, df_seq_mean, 'tcpip/ethernet')['net_ratio_%'].mean()
-]
 
-b_ov = ax2.bar(net_names, avg_overhead, width=0.45, color=colors_palette, edgecolor='#333333', linewidth=0.8)
-ax2.set_ylabel('% Media Tempo di Rete su Tempo Totale', fontsize=12)
-ax2.set_title('Overhead Medio della Comunicazione di Rete', fontsize=13, fontweight='bold', pad=18)
-ax2.set_ylim(0, max(avg_overhead) + 5)
-ax2.grid(True, linestyle='--', alpha=0.5, axis='y')
+def analyze_hybrid_vs_mpi_only(hybrid_csv: Path, mpi_only_csv: Path, output_path: Path, mode_label: str = "SoA", t_seq: float = T_SEQ_1M) -> None:
+    df_hyb = load_scaling_csv(hybrid_csv)
+    df_mpi = load_scaling_csv(mpi_only_csv)
 
-for b in b_ov:
-    h = b.get_height()
-    ax2.annotate(f'{h:.1f}%', xy=(b.get_x() + b.get_width() / 2, h), xytext=(0, 4),
-                 textcoords="offset points", ha='center', va='bottom', fontsize=10.5, fontweight='bold')
+    for df in (df_hyb, df_mpi):
+        df["Speedup_Total"] = t_seq / df["Total_Time"]
+        df["Efficiency_Total"] = (df["Speedup_Total"] / df["Total_Cores"]) * 100.0
 
-plt.tight_layout()
-plt.savefig('confronto_reti_verdetto.png', dpi=300)
-plt.close()
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5), dpi=120)
 
-print('Script completato: tutti i grafici e confronti generati!')
+    # 1. Confronto Speedup: Ibrido (4 MPI x t OMP) vs Solo MPI (p MPI x 1 OMP)
+    ax1.plot(
+        df_hyb["Total_Cores"],
+        df_hyb["Speedup_Total"],
+        marker="^",
+        linewidth=2.2,
+        color="#2ca02c",
+        label=f"Ibrido 4 MPI × t OMP ({mode_label})",
+    )
+    ax1.plot(
+        df_mpi["Total_Cores"],
+        df_mpi["Speedup_Total"],
+        marker="o",
+        linewidth=2.2,
+        color="#d62728",
+        label=f"Solo MPI p × 1 OMP ({mode_label})",
+    )
+    ax1.plot(
+        df_hyb["Total_Cores"],
+        df_hyb["Total_Cores"],
+        linestyle="--",
+        color="gray",
+        alpha=0.8,
+        label="Speedup Ideale ($S_p = p$)",
+    )
+
+    ax1.set_title(f"Strong Scaling ({mode_label}): Ibrido MPI+OMP vs Solo MPI", fontsize=13, fontweight="bold")
+    ax1.set_xlabel("Numero di Core Totali ($p$)", fontsize=11)
+    ax1.set_ylabel("Speedup ($T_{seq} / T_p$)", fontsize=11)
+    ax1.set_xticks(df_hyb["Total_Cores"])
+    ax1.grid(True, linestyle=":", alpha=0.6)
+    ax1.legend(frameon=True)
+
+    # 2. Confronto Efficienza
+    ax2.plot(
+        df_hyb["Total_Cores"],
+        df_hyb["Efficiency_Total"],
+        marker="^",
+        linewidth=2.2,
+        color="#2ca02c",
+        label=f"Efficienza Ibrido ({mode_label})",
+    )
+    ax2.plot(
+        df_mpi["Total_Cores"],
+        df_mpi["Efficiency_Total"],
+        marker="o",
+        linewidth=2.2,
+        color="#d62728",
+        label=f"Efficienza Solo MPI ({mode_label})",
+    )
+    ax2.axhline(
+        100.0,
+        linestyle="--",
+        color="gray",
+        alpha=0.8,
+        label="Efficienza Ideale (100%)",
+    )
+
+    max_eff = max(df_hyb["Efficiency_Total"].max(), df_mpi["Efficiency_Total"].max())
+    ax2.set_title(f"Efficienza ({mode_label}): Ibrido MPI+OMP vs Solo MPI", fontsize=13, fontweight="bold")
+    ax2.set_xlabel("Numero di Core Totali ($p$)", fontsize=11)
+    ax2.set_ylabel("Efficienza (%) [ $T_{seq} / (p \\cdot T_p)$ ]", fontsize=11)
+    ax2.set_ylim(0, max(110.0, max_eff + 10.0))
+    ax2.set_xticks(df_hyb["Total_Cores"])
+    ax2.grid(True, linestyle=":", alpha=0.6)
+    ax2.legend(frameon=True)
+
+    plt.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, dpi=300)
+    plt.close()
+
+
+def main() -> None:
+    strong_dir = BASE_DIR / "scaling" / "strong"
+    weak_dir = BASE_DIR / "scaling" / "weak"
+
+    aos_strong_csv = strong_dir / "results_scaling.data"
+    soa_strong_csv = strong_dir / "results_scaling_soa.data"
+    aos_mpi_only_csv = strong_dir / "results_parallel_mpi_only.data"
+    soa_mpi_only_csv = strong_dir / "results_parallel_soa_mpi_only.data"
+    weak_csv = weak_dir / "results_scaling.data"
+
+    if aos_strong_csv.exists():
+        analyze_strong_scaling(
+            aos_strong_csv,
+            strong_dir / "benchmark_efficiency.png",
+            title_suffix="AoS Ibrido",
+        )
+        print(f"Generato: {strong_dir / 'benchmark_efficiency.png'}")
+
+    if soa_strong_csv.exists():
+        analyze_strong_scaling(
+            soa_strong_csv,
+            strong_dir / "benchmark_efficiency_soa.png",
+            title_suffix="SoA Ibrido",
+        )
+        print(f"Generato: {strong_dir / 'benchmark_efficiency_soa.png'}")
+
+    if aos_strong_csv.exists() and soa_strong_csv.exists():
+        analyze_strong_scaling_comparison(
+            aos_strong_csv,
+            soa_strong_csv,
+            strong_dir / "benchmark_efficiency_comparison.png",
+        )
+        print(f"Generato: {strong_dir / 'benchmark_efficiency_comparison.png'}")
+
+    if aos_mpi_only_csv.exists():
+        analyze_strong_scaling(
+            aos_mpi_only_csv,
+            strong_dir / "benchmark_efficiency_mpi_only.png",
+            title_suffix="AoS Solo MPI",
+        )
+        print(f"Generato: {strong_dir / 'benchmark_efficiency_mpi_only.png'}")
+        if aos_strong_csv.exists():
+            analyze_hybrid_vs_mpi_only(
+                aos_strong_csv,
+                aos_mpi_only_csv,
+                strong_dir / "benchmark_hybrid_vs_mpi_only_aos.png",
+                mode_label="AoS",
+            )
+            print(f"Generato: {strong_dir / 'benchmark_hybrid_vs_mpi_only_aos.png'}")
+
+    if soa_mpi_only_csv.exists():
+        analyze_strong_scaling(
+            soa_mpi_only_csv,
+            strong_dir / "benchmark_efficiency_soa_mpi_only.png",
+            title_suffix="SoA Solo MPI",
+        )
+        print(f"Generato: {strong_dir / 'benchmark_efficiency_soa_mpi_only.png'}")
+        if soa_strong_csv.exists():
+            analyze_hybrid_vs_mpi_only(
+                soa_strong_csv,
+                soa_mpi_only_csv,
+                strong_dir / "benchmark_hybrid_vs_mpi_only_soa.png",
+                mode_label="SoA",
+            )
+            print(f"Generato: {strong_dir / 'benchmark_hybrid_vs_mpi_only_soa.png'}")
+
+    if weak_csv.exists():
+        analyze_weak_scaling(
+            weak_csv,
+            weak_dir / "benchmark_weak_scaling.png",
+        )
+        print(f"Generato: {weak_dir / 'benchmark_weak_scaling.png'}")
+
+
+if __name__ == "__main__":
+    main()
